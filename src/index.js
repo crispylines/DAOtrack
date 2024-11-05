@@ -1,7 +1,7 @@
 //CURRENT
 //-1002368630513 The Lab
 //-1002370104136 testing area
-//revert to this version if the 3rd tab doesnt work
+//wrangler tail solana-tracker-worker
 
 const TELEGRAM_BOT_TOKEN = BOT_TOKEN;  // Your Telegram Bot Token
 const TELEGRAM_CHAT_ID = CHAT_ID;      // Your Telegram Chat ID
