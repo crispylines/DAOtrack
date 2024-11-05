@@ -56,12 +56,6 @@ const WALLET_LABELS = {
   '85H7h4PPrv4TVoJaSD7MtvdD32kuR9tCZpA8xjATJcm9': { label: '🥼#fwogCabal', cluster: 'cluster5' },
   'RFSqPtn1JfavGiUD4HJsZyYXvZsycxf31hnYfbyG6iB': { label: '🥼#sez1', cluster: 'cluster5' },
   'Fofeqp2E3ykxnsB84L5HHVvTwtmkZqMg6YQEVgYkNfdW': { label: '🥼#shock', cluster: 'cluster5' },
-  'FHYWo71Wk9PNDe5sBaRKazPnVyGnQDiwgXCFKvgAQ1ENp': { label: '🥼#adamTrack', cluster: 'cluster5' },
-  'FHYWo71Wk9PNDe5sBaRKazPnVyGnQDiwgXCFKvgAQ1ENp': { label: '🥼#adamTrack', cluster: 'cluster5' },
-  'FHYWo71Wk9PNDe5sBaRKazPnVyGnQDiwgXCFKvgAQ1ENp': { label: '🥼#adamTrack', cluster: 'cluster5' },
-  'FHYWo71Wk9PNDe5sBaRKazPnVyGnQDiwgXCFKvgAQ1ENp': { label: '🥼#adamTrack', cluster: 'cluster5' },
-  'FHYWo71Wk9PNDe5sBaRKazPnVyGnQDiwgXCFKvgAQ1ENp': { label: '🥼#adamTrack', cluster: 'cluster5' },
-  'FHYWo71Wk9PNDe5sBaRKazPnVyGnQDiwgXCFKvgAQ1ENp': { label: '🥼#adamTrack', cluster: 'cluster5' },
 };
 
 //
