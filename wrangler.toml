@@ -7,7 +7,6 @@ BOT_TOKEN = "7583410459:AAEDbnO1Bq_jXqsIKYAiT5WtFgnqptzUO8I"  # Will be overridd
 CHAT_ID = "-1002370104136"    # Will be overridden by environment
 API_KEY = "5df87373-6bfd-4df2-95f7-295ba4423663"    # Will be overridden by environment
 
-# KV Namespace for TOKEN_BUYS_2
-kv_namespaces = [
-  { binding = "TOKEN_BUYS_2", id = "62c7ea62522b4125aaadb0f008301fa1" }
-] 
+[[kv_namespaces]]
+binding = "TOKEN_BUYS_2"
+id = "62c7ea62522b4125aaadb0f008301fa1" 

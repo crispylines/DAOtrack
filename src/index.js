@@ -67,6 +67,9 @@ const FILTERED_WALLETS = [
   'JD1dHSqYkrXvqUVL8s6gzL1yB7kpYymsHfwsGxgwp55h'//on-chain surfer
 ];
 
+// Add at the top with other constants
+const PROCESSED_TXS = new Set();
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -91,6 +94,19 @@ async function handleRequest(request) {
 
     const event = requestBody[0];
     if (event?.type === 'SWAP') {
+      // Add duplicate transaction check
+      if (PROCESSED_TXS.has(event.signature)) {
+        console.log('Already processed this transaction, skipping');
+        return new Response('Already processed.', { status: 200 });
+      }
+      PROCESSED_TXS.add(event.signature);
+      
+      // Clear old signatures periodically (keep last 1000)
+      if (PROCESSED_TXS.size > 1000) {
+        const entries = Array.from(PROCESSED_TXS);
+        entries.slice(0, entries.length - 1000).forEach(sig => PROCESSED_TXS.delete(sig));
+      }
+
       if (isWalletFiltered(event)) {
         console.log('Wallet filtered, not processing this swap');
         return new Response('Filtered wallet, not processed.', { status: 200 });
