@@ -462,3 +462,12 @@ async function sendToTelegram(message, tokenAddress) {
     console.error('Failed to send message to Telegram:', responseData);
   }
 }
+
+export default {
+  async fetch(request, env, ctx) {
+    // Make env variables available globally
+    globalThis.TOKEN_BUYS_2 = env.TOKEN_BUYS_2;
+    globalThis.VOLUME_TRACKER = env.VOLUME_TRACKER;
+    // ... rest of your code ...
+  }
+};
