@@ -111,7 +111,7 @@ async function handleRequest(request) {
 
       //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
       let messageToSend = 
-                          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTER'}\n` +
+                          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
                           `${labeledDescription}\n\n` +
                            // `Tx:${transactionSignature}\n\n` +
                           `MC: ${marketCap}\n\n` +
