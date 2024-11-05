@@ -128,11 +128,7 @@ async function handleRequest(request) {
       const transactionTimestamp = new Date(timestamp * 1000).toLocaleString();
       const transactionSignature = `https://solscan.io/tx/${signature}`;
 
-      console.log('Token transfers:', tokenTransfers);
-
       const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
-
-      console.log('Analyzed swap:', { tokenIn, tokenOut, amountIn, amountOut });
 
       const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
 
