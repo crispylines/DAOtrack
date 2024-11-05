@@ -1,4 +1,4 @@
- //CURRENT
+//CURRENT
 //-1002368630513 The Lab
 //-1002370104136 testing area
 //revert to this version if the 3rd tab doesnt work
@@ -113,11 +113,12 @@ async function handleRequest(request) {
       let messageToSend = 
                           `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
                           `${labeledDescription}\n\n` +
-                           // `Tx:${transactionSignature}\n\n` +
                           `MC: ${marketCap}\n\n` +
                           `<code>${tokenToDisplay}</code>`;
 
+      console.log('About to send message to Telegram:', messageToSend);
       await sendToTelegram(messageToSend, tokenToDisplay);
+      console.log('Sent initial message to Telegram');
 
       if (isBeingBought) {
         const buyersKey = `buyers_${tokenToDisplay}`;
@@ -133,7 +134,9 @@ async function handleRequest(request) {
                                 `${Array.from(buyers).join(', ')}\n\n` +
                           `MC: ${marketCap}\n\n` +
                                 `<code>${tokenToDisplay}</code>`;
+          console.log('About to send buyers message to Telegram:', buyersMessage);
           await sendToTelegram(buyersMessage, tokenToDisplay);
+          console.log('Sent buyers message to Telegram');
           
           console.log(`Sent multiple buys alert for ${tokenToDisplay}`);
           
@@ -262,6 +265,8 @@ async function fetchMarketCap(tokenAddress) {
 
 async function sendToTelegram(message, tokenAddress) {
   const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  
+  console.log('Sending message to Telegram:', { message, tokenAddress });
   
   const inlineKeyboard = {
     inline_keyboard: [
