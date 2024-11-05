@@ -98,7 +98,6 @@ async function handleRequest(request) {
   try {
     const event = await request.json();
     
-    // Check if this is a transaction we want to process
     if (event.type === 'transaction') {
       // Skip if already processed
       if (PROCESSED_TXS.has(event.signature)) {
@@ -116,53 +115,38 @@ async function handleRequest(request) {
         return new Response('Not a relevant DEX transaction.', { status: 200 });
       }
 
-      // Rest of your existing wallet filtering code...
       if (isWalletFiltered(event)) {
         console.log('Wallet filtered, not processing this swap');
         return new Response('Filtered wallet, not processed.', { status: 200 });
       }
 
       const { description, timestamp, signature, tokenTransfers } = event;
-      
-      // For Pump.fun, we can look at the program logs to determine if it's a buy or sell
-      if (isPumpFunTx) {
-        const pumpfunInstruction = event.instructions.find(ix => ix.programId === PUMPFUN_PROGRAM_ID);
-        const isBuy = pumpfunInstruction?.data?.includes('Instruction: Buy');
-        
-        // If we can't determine the type, skip processing
-        if (typeof isBuy !== 'boolean') {
-          return new Response('Unable to determine Pump.fun transaction type.', { status: 200 });
-        }
 
-        // Process the swap using existing token transfer analysis
-        const swapInfo = analyzeSwap(tokenTransfers);
-        if (!swapInfo.tokenIn || !swapInfo.tokenOut) {
-          return new Response('Invalid token transfers.', { status: 200 });
-        }
-
-        // Use existing logic to determine which token to display
-        const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(
-          swapInfo.tokenIn,
-          swapInfo.tokenOut,
-          swapInfo.amountIn,
-          swapInfo.amountOut
-        );
-
-        // Rest of your existing processing code...
-        const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(
-          description,
-          tokenToDisplay,
-          await getTokenMetadata(tokenToDisplay)
-        );
-
-        // Send the message using existing code...
-        await sendTelegramMessage(labeledDescription, signature, clusterInfo, walletLabel);
-      } else {
-        // Existing Raydium processing logic...
+      // Process the swap using token transfer analysis
+      const swapInfo = analyzeSwap(tokenTransfers);
+      if (!swapInfo.tokenIn || !swapInfo.tokenOut) {
+        return new Response('Invalid token transfers.', { status: 200 });
       }
-    }
 
-    return new Response('OK', { status: 200 });
+      // Use existing logic to determine which token to display
+      const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(
+        swapInfo.tokenIn,
+        swapInfo.tokenOut,
+        swapInfo.amountIn,
+        swapInfo.amountOut
+      );
+
+      // Rest of your existing processing code...
+      const { labeledDescription, clusterInfo, walletLabel } = await replaceWalletWithLabelAndCluster(
+        description,
+        tokenToDisplay,
+        await getTokenMetadata(tokenToDisplay)
+      );
+
+      await sendTelegramMessage(labeledDescription, signature, clusterInfo, walletLabel);
+      return new Response('OK', { status: 200 });
+    }
+    return new Response('Not a transaction event.', { status: 200 });
   } catch (error) {
     console.error('Error processing request:', error);
     return new Response('Error processing request', { status: 500 });
@@ -180,14 +164,25 @@ function analyzeSwap(tokenTransfers) {
     };
   }
 
-  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
-  
-  return {
-    tokenIn: tokenInTransfer.mint,
-    tokenOut: tokenOutTransfer.mint,
-    amountIn: tokenInTransfer.amount,
-    amountOut: tokenOutTransfer.amount
-  };
+  const SOL_ADDRESS = 'So11111111111111111111111111111111111111112';
+  const [transfer1, transfer2] = tokenTransfers;
+
+  // Determine which transfer is SOL and which is the token
+  if (transfer1.mint === SOL_ADDRESS) {
+    return {
+      tokenIn: transfer1.mint,
+      tokenOut: transfer2.mint,
+      amountIn: transfer1.amount,
+      amountOut: transfer2.amount
+    };
+  } else {
+    return {
+      tokenIn: transfer2.mint,
+      tokenOut: transfer1.mint,
+      amountIn: transfer2.amount,
+      amountOut: transfer1.amount
+    };
+  }
 }
 
 function getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut) {
