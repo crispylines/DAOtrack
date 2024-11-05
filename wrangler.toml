@@ -3,10 +3,11 @@ main = "src/index.js"
 compatibility_date = "2023-01-01"
 
 [vars]
-# Public variables can go here
-# Don't put sensitive data here!
+BOT_TOKEN = ""  # Will be overridden by environment
+CHAT_ID = ""    # Will be overridden by environment
+API_KEY = ""    # Will be overridden by environment
 
-# KV Namespace for TOKEN_BUYS
+# KV Namespace for TOKEN_BUYS_2
 kv_namespaces = [
-  { binding = "TOKEN_BUYS", id = "your-kv-namespace-id" }
+  { binding = "TOKEN_BUYS_2", id = "62c7ea62522b4125aaadb0f008301fa1" }
 ] 
