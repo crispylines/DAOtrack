@@ -1,0 +1,12 @@
+name = "solana-tracker-worker"
+main = "src/index.js"
+compatibility_date = "2023-01-01"
+
+[vars]
+# Public variables can go here
+# Don't put sensitive data here!
+
+# KV Namespace for TOKEN_BUYS
+kv_namespaces = [
+  { binding = "TOKEN_BUYS", id = "your-kv-namespace-id" }
+] 
