@@ -9,9 +9,4 @@ API_KEY = "5df87373-6bfd-4df2-95f7-295ba4423663"    # Will be overridden by envi
 
 [[kv_namespaces]]
 binding = "TOKEN_BUYS_2"
-
 id = "62c7ea62522b4125aaadb0f008301fa1"
-
-[[kv_namespaces]]
-binding = "VOLUME_TRACKER"
-id = "8f7c626735564978b64a58fddcdee4a4"  # Replace with the ID from Cloudflare dashboard
