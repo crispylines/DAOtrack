@@ -1,4 +1,4 @@
-//CURRENT
+ //CURRENT
 //-1002368630513 The Lab
 //-1002370104136 testing area
 //revert to this version if the 3rd tab doesnt work
@@ -108,7 +108,7 @@ async function handleRequest(request) {
 
       //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
       let messageToSend = 
-                          `${isBeingBought ? '🟢🧪Buy' : '🔴🧪Sell'}\n` +
+                          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTEST'}\n` +
                           `${labeledDescription}\n\n` +
                            // `Tx:${transactionSignature}\n\n` +
                           `MC: ${marketCap}\n\n` +
@@ -118,10 +118,10 @@ async function handleRequest(request) {
 
       if (isBeingBought) {
         const buyersKey = `buyers_${tokenToDisplay}`;
-        let buyersJson = await TOKEN_BUYS.get(buyersKey);
+        let buyersJson = await TOKEN_BUYS_2.get(buyersKey);  // Changed from TOKEN_BUYS
         let buyers = new Set(JSON.parse(buyersJson || '[]'));
         buyers.add(walletLabel);
-        await TOKEN_BUYS.put(buyersKey, JSON.stringify(Array.from(buyers)));
+        await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(Array.from(buyers)));  // Changed from TOKEN_BUYS
 
         console.log(`Current buyers for ${tokenToDisplay}: ${Array.from(buyers).join(', ')}`);
 
@@ -135,7 +135,7 @@ async function handleRequest(request) {
           console.log(`Sent multiple buys alert for ${tokenToDisplay}`);
           
           // Clear the buyers after sending the alert
-          await TOKEN_BUYS.delete(buyersKey);
+          await TOKEN_BUYS_2.delete(buyersKey);  // Changed from TOKEN_BUYS
         }
       }
     } else {
