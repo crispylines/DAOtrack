@@ -72,6 +72,93 @@ const FILTERED_WALLETS = [
 // Add at the top with other constants
 const PROCESSED_TXS = new Set();
 
+// Add these constants at the top
+const VOLUME_THRESHOLD_SOL = 50; // Minimum SOL volume to trigger alert
+const TIME_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const MIN_TOKEN_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days in milliseconds
+
+// Add this function to check token age
+async function getTokenAge(tokenAddress) {
+  try {
+    const response = await fetch(HELIUS_RPC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'token-age',
+        method: 'getAsset',
+        params: { id: tokenAddress }
+      })
+    });
+    
+    const data = await response.json();
+    if (data.result?.createdAt) {
+      return Date.now() - new Date(data.result.createdAt).getTime();
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching token age:', error);
+    return null;
+  }
+}
+
+// Add this function to track global volume
+async function trackGlobalVolume(event, tokenAddress, amountInSOL) {
+  const volumeKey = `global_volume_${tokenAddress}`;
+  let volumeData = await VOLUME_TRACKER.get(volumeKey);
+  const now = Date.now();
+
+  // Get token age
+  const tokenAge = await getTokenAge(tokenAddress);
+  if (!tokenAge || tokenAge < MIN_TOKEN_AGE_MS) {
+    return; // Skip if token is too new or age unknown
+  }
+
+  let data = volumeData ? JSON.parse(volumeData) : {
+    trades: [],
+    totalVolume: 0,
+    lastAlertTime: 0
+  };
+
+  // Clean old trades
+  data.trades = data.trades.filter(trade => 
+    (now - trade.timestamp) <= TIME_WINDOW_MS
+  );
+
+  // Add new trade
+  data.trades.push({
+    timestamp: now,
+    amount: amountInSOL
+  });
+
+  // Calculate volume in window
+  data.totalVolume = data.trades.reduce((sum, trade) => sum + trade.amount, 0);
+
+  // Check for volume spike
+  if (data.totalVolume >= VOLUME_THRESHOLD_SOL && 
+      (now - data.lastAlertTime) > TIME_WINDOW_MS) {
+    
+    const tokenMetadata = await getTokenMetadata(tokenAddress);
+    const marketCap = await fetchMarketCap(tokenAddress);
+    
+    const volumeMessage = `🌊 High Volume Alert (Global) 🌊\n\n` +
+                         `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
+                         `Volume (5min): ${data.totalVolume.toFixed(2)} SOL\n` +
+                         `Trade Count: ${data.trades.length}\n` +
+                         `Market Cap: ${marketCap}\n` +
+                         `Token Age: ${Math.floor(tokenAge / (24 * 60 * 60 * 1000))} days\n\n` +
+                         `<code>${tokenAddress}</code>`;
+
+    await sendToTelegram(volumeMessage, tokenAddress);
+    data.lastAlertTime = now;
+  }
+
+  // Store updated data
+  await VOLUME_TRACKER.put(volumeKey, JSON.stringify(data), {
+    expirationTtl: 3600 // Expire after 1 hour
+  });
+}
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -197,6 +284,14 @@ async function handleRequest(request) {
             console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
           }
         }
+      }
+
+      // Add global volume tracking
+      const SOL_ADDRESS = 'So11111111111111111111111111111111111111112';
+      if (tokenIn === SOL_ADDRESS) {
+        await trackGlobalVolume(event, tokenOut, parseFloat(amountIn) / 1e9);
+      } else if (tokenOut === SOL_ADDRESS) {
+        await trackGlobalVolume(event, tokenIn, parseFloat(amountOut) / 1e9);
       }
     } else {
       console.log('Not a SWAP event, ignoring.');
