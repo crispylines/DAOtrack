@@ -95,7 +95,17 @@ async function handleRequest(request) {
     console.log('Received POST request with body:', requestBody);
 
     const event = requestBody[0];
-    if (event?.type === 'SWAP') {
+    
+    // Check for both SWAP type and Raydium program IDs
+    const isSwap = event?.type === 'SWAP';
+    const isRaydiumDirect = event?.instructions?.some(instruction => 
+      instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
+    );
+    const isRaydiumRouted = event?.instructions?.some(instruction => 
+      instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
+    );
+
+    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
@@ -199,8 +209,18 @@ async function handleRequest(request) {
 }
 
 function analyzeSwap(tokenTransfers) {
-  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
+  // Handle case where tokenTransfers might be undefined or empty
+  if (!tokenTransfers || tokenTransfers.length < 2) {
+    return {
+      tokenIn: null,
+      tokenOut: null,
+      amountIn: 0,
+      amountOut: 0
+    };
+  }
 
+  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
+  
   return {
     tokenIn: tokenInTransfer.mint,
     tokenOut: tokenOutTransfer.mint,
