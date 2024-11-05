@@ -168,7 +168,7 @@ async function handleRequest(request) {
           if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
             const buyNumber = buyersData.buyers.length;
             const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                                 `${buyNumber}rd Different Buyer Detected for\n\n` +
+                                 `${buyNumber} Different Buyers Detected for\n\n` +
                                  `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
                                  `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
                                  `MC: ${marketCap}\n\n` +
