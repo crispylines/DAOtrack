@@ -245,32 +245,29 @@ async function handleRequest(request) {
       if (isBeingBought) {
         const buyersKey = `buyers_${tokenToDisplay}`;
         let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
-        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
+        console.log('Current buyers data:', buyersJson); // Debug log
 
-        // Check if this is a new tracking session or if the old one expired (4 hours = 14400000 ms)
+        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
+        console.log('Parsed buyers data:', buyersData); // Debug log
+
+        // Check if this is a new tracking session
         const now = Date.now();
         if (now - buyersData.firstBuyTime > 14400000) {
-          // Reset if more than 4 hours passed
+          console.log('Resetting buyers data due to timeout'); // Debug log
           buyersData = {
             buyers: [],
             firstBuyTime: now
           };
         }
 
-        // If this is the first buy, set the time
-        if (buyersData.buyers.length === 0) {
-          buyersData.firstBuyTime = now;
-        }
-
-        // Add new buyer if not already present
         if (!buyersData.buyers.includes(walletLabel)) {
+          console.log(`Adding new buyer ${walletLabel} to list`); // Debug log
           buyersData.buyers.push(walletLabel);
           await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
+          console.log(`Updated buyers list: ${buyersData.buyers.join(', ')}`); // Debug log
 
-          console.log(`Current buyers for ${tokenToDisplay}: ${buyersData.buyers.join(', ')}`);
-
-          // Check for multiple buyers milestones (2, 3, or 4 buyers)
           if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
+            console.log(`Triggering ${buyersData.buyers.length} buyers message`); // Debug log
             const buyNumber = buyersData.buyers.length;
             const buyersMessage = `${('🧬').repeat(12)}\n\n` +
                                  `${buyNumber} Different Buyers Detected for\n\n` +
