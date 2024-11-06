@@ -233,7 +233,7 @@ async function handleRequest(request) {
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
       let messageToSend = 
-        `${isBeingBought ? (isPumpFunTx ? '🎮🟢PF BuyTEST' : '🟢🧪BuyTEST') : (isPumpFunTx ? '🎮🔴PF SellTEST' : '🔴🧪SellTESTERS')}\n` +
+        `${isBeingBought ? (isPumpFunTx ? '💊🟢PF Buy' : '🟢🧪Buy') : (isPumpFunTx ? '💊🔴PF Sell' : '🔴🧪Sell')}\n` +
         `${labeledDescription}\n\n` +
         `MC: ${marketCap}\n\n` +
         `<code>${tokenToDisplay}</code>`;
