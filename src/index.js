@@ -72,6 +72,11 @@ const FILTERED_WALLETS = [
 // Add at the top with other constants
 const PROCESSED_TXS = new Set();
 
+// Add these constants at the top with other constants
+const PUMPFUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const SENT_MESSAGES = new Map();
+const MESSAGE_EXPIRY = 2 * 1000; // 2 seconds in milliseconds
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -89,6 +94,44 @@ function isWalletFiltered(event) {
   return checkFields.some(field => FILTERED_WALLETS.includes(field));
 }
 
+// Add this function before handleRequest
+function determinePumpFunAction(event) {
+    const pumpInstruction = event.instructions?.find(instruction => 
+        instruction.programId === PUMPFUN_PROGRAM_ID
+    );
+
+    if (pumpInstruction) {
+        if (pumpInstruction.data?.toString().includes('PumpBuy')) {
+            console.log('Detected explicit PumpBuy instruction');
+            return 'BUY';
+        }
+        if (pumpInstruction.data?.toString().includes('PumpSell')) {
+            console.log('Detected explicit PumpSell instruction');
+            return 'SELL';
+        }
+
+        const pumpEvents = pumpInstruction.innerInstructions?.find(inner => 
+            inner.programId === PUMPFUN_PROGRAM_ID
+        )?.events;
+
+        if (pumpEvents) {
+            if (pumpEvents.isBuy === true) return 'BUY';
+            if (pumpEvents.isBuy === false) return 'SELL';
+        }
+    }
+
+    const { description } = event;
+    const trackedLabels = Object.values(WALLET_LABELS).map(info => info.label);
+    
+    for (const label of trackedLabels) {
+        if (description.includes(`to ${label}`)) return 'BUY';
+        if (description.startsWith(label)) return 'SELL';
+    }
+
+    return 'SELL';
+}
+
+// Modify handleRequest to include PumpFun logic
 async function handleRequest(request) {
   if (request.method === 'POST') {
     const requestBody = await request.json();
@@ -96,8 +139,7 @@ async function handleRequest(request) {
 
     const event = requestBody[0];
     
-    
-    // Check for both SWAP type and Raydium program IDs
+    // Check for both SWAP type, Raydium, and PumpFun transactions
     const isSwap = event?.type === 'SWAP';
     const isRaydiumDirect = event?.instructions?.some(instruction => 
       instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
@@ -105,7 +147,11 @@ async function handleRequest(request) {
     const isRaydiumRouted = event?.instructions?.some(instruction => 
       instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
     );
-    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
+    const isPumpFunTx = event?.instructions?.some(instruction => 
+      instruction.programId === PUMPFUN_PROGRAM_ID
+    );
+
+    if (isSwap || isRaydiumDirect || isRaydiumRouted || isPumpFunTx) {
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
@@ -120,30 +166,44 @@ async function handleRequest(request) {
       }
 
       if (isWalletFiltered(event)) {
-        console.log('Wallet filtered, not processing this swap');
+        console.log('Wallet filtered, not processing this transaction');
         return new Response('Filtered wallet, not processed.', { status: 200 });
       }
 
       const { description, timestamp, signature, tokenTransfers } = event;
-      const transactionTimestamp = new Date(timestamp * 1000).toLocaleString();
-      const transactionSignature = `https://solscan.io/tx/${signature}`;
 
-      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+      let tokenToDisplay, amount, isBeingBought;
 
-      const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
+      if (isPumpFunTx) {
+        const relevantTransfer = tokenTransfers.find(transfer => 
+          transfer.mint !== SOL_ADDRESS
+        );
+        
+        if (!relevantTransfer) {
+          console.log('No relevant token transfer found in PumpFun transaction');
+          return new Response('No relevant token transfer.', { status: 200 });
+        }
+
+        tokenToDisplay = relevantTransfer.mint;
+        amount = relevantTransfer.amount;
+        isBeingBought = determinePumpFunAction(event) === 'BUY';
+      } else {
+        const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+        const result = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
+        tokenToDisplay = result.tokenToDisplay;
+        amount = result.amount;
+        isBeingBought = result.isBeingBought;
+      }
 
       const tokenMetadata = await getTokenMetadata(tokenToDisplay);
-
       const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(description, tokenToDisplay, tokenMetadata);
-
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
-      //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
       let messageToSend = 
-                          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
-                          `${labeledDescription}\n\n` +
-                          `MC: ${marketCap}\n\n` +
-                          `<code>${tokenToDisplay}</code>`;
+        `${isBeingBought ? (isPumpFunTx ? '🎮🟢PF Buy' : '🟢🧪BuyTEST') : (isPumpFunTx ? '🎮🔴PF Sell' : '🔴🧪SellTESTERS')}\n` +
+        `${labeledDescription}\n\n` +
+        `MC: ${marketCap}\n\n` +
+        `<code>${tokenToDisplay}</code>`;
 
       console.log('About to send message to Telegram:', messageToSend);
       await sendToTelegram(messageToSend, tokenToDisplay);
@@ -328,7 +388,22 @@ async function fetchMarketCap(tokenAddress) {
   }
 }
 
+// Modify sendToTelegram to include message deduplication
 async function sendToTelegram(message, tokenAddress) {
+  const messageKey = `${tokenAddress}-${Date.now()}`;
+  
+  for (const [key, timestamp] of SENT_MESSAGES.entries()) {
+    if (Date.now() - timestamp > MESSAGE_EXPIRY) {
+      SENT_MESSAGES.delete(key);
+      continue;
+    }
+    
+    if (key.startsWith(tokenAddress)) {
+      console.log('Recent message already sent for this token, skipping');
+      return;
+    }
+  }
+
   const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
   console.log('Sending message to Telegram:', { message, tokenAddress });
@@ -365,5 +440,9 @@ async function sendToTelegram(message, tokenAddress) {
 
   if (!response.ok) {
     console.error('Failed to send message to Telegram:', responseData);
+  }
+
+  if (response.ok) {
+    SENT_MESSAGES.set(messageKey, Date.now());
   }
 }
