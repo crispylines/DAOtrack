@@ -110,7 +110,7 @@ function determinePumpFunAction(event) {
         // Check if this is a tracked wallet buying
         const { description } = event;
         const trackedLabels = Object.values(WALLET_LABELS).map(info => info.label);
-
+        
         for (const label of trackedLabels) {
             if (description.includes(`to ${label}`)) {
                 console.log(`Detected buy to tracked wallet ${label}`);
@@ -130,14 +130,14 @@ function determinePumpFunAction(event) {
         if (event.tokenTransfers && event.tokenTransfers.length > 0) {
             const transfer = event.tokenTransfers[0];
             const toWallet = transfer.toUserAccount;
-
+            
             // Check if destination wallet is tracked
             const isToTrackedWallet = Object.keys(WALLET_LABELS).includes(toWallet);
             console.log('Token transfer destination check:', {
                 toWallet,
                 isToTrackedWallet
             });
-
+            
             return isToTrackedWallet ? 'BUY' : 'SELL';
         }
     }
@@ -152,7 +152,7 @@ async function handleRequest(request) {
     console.log('Received POST request with body:', requestBody);
 
     const event = requestBody[0];
-
+    
     // Check for both SWAP type, Raydium, and PumpFun transactions
     const isSwap = event?.type === 'SWAP';
     const isRaydiumDirect = event?.instructions?.some(instruction => 
@@ -200,11 +200,11 @@ async function handleRequest(request) {
       if (isPumpFunTx) {
         console.log('Processing PumpFun transaction');
         console.log('Token transfers:', tokenTransfers);
-
+        
         const relevantTransfer = tokenTransfers?.find(transfer => 
           transfer.mint !== SOL_ADDRESS
         );
-
+        
         if (!relevantTransfer) {
           console.log('No relevant token transfer found in PumpFun transaction');
           return new Response('No relevant token transfer.', { status: 200 });
@@ -213,7 +213,7 @@ async function handleRequest(request) {
         tokenToDisplay = relevantTransfer.mint;
         amount = relevantTransfer.tokenAmount;
         isBeingBought = determinePumpFunAction(event) === 'BUY';
-
+        
         console.log('PumpFun transaction details:', {
           tokenToDisplay,
           amount,
@@ -233,7 +233,6 @@ async function handleRequest(request) {
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
       let messageToSend = 
-        `${isBeingBought ? (isPumpFunTx ? '🎮🟢PF BuyTEST' : '🟢🧪BuyTEST') : (isPumpFunTx ? '🎮🔴PF SellTEST' : '🔴🧪SellTESTERS')}\n` +
         `${isBeingBought ? (isPumpFunTx ? '💊🟢PF Buy' : '🟢🧪Buy') : (isPumpFunTx ? '💊🔴PF Sell' : '🔴🧪Sell')}\n` +
         `${labeledDescription}\n\n` +
         `MC: ${marketCap}\n\n` +
@@ -303,7 +302,7 @@ async function handleRequest(request) {
 }
 
 function analyzeSwap(tokenTransfers) {
-
+  
   // Handle case where tokenTransfers might be undefined or empty
   if (!tokenTransfers || tokenTransfers.length < 2) {
     return {
@@ -315,7 +314,7 @@ function analyzeSwap(tokenTransfers) {
   }
 
   const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
-
+  
   return {
     tokenIn: tokenInTransfer.mint,
     tokenOut: tokenOutTransfer.mint,
@@ -425,13 +424,13 @@ async function fetchMarketCap(tokenAddress) {
 // Modify sendToTelegram to include message deduplication
 async function sendToTelegram(message, tokenAddress) {
   const messageKey = `${tokenAddress}-${Date.now()}`;
-
+  
   for (const [key, timestamp] of SENT_MESSAGES.entries()) {
     if (Date.now() - timestamp > MESSAGE_EXPIRY) {
       SENT_MESSAGES.delete(key);
       continue;
     }
-
+    
     if (key.startsWith(tokenAddress)) {
       console.log('Recent message already sent for this token, skipping');
       return;
