@@ -104,34 +104,45 @@ function determinePumpFunAction(event) {
     );
 
     if (pumpInstruction) {
-        if (pumpInstruction.data?.toString().includes('PumpBuy')) {
-            console.log('Detected explicit PumpBuy instruction');
-            return 'BUY';
-        }
-        if (pumpInstruction.data?.toString().includes('PumpSell')) {
-            console.log('Detected explicit PumpSell instruction');
-            return 'SELL';
+        // Log the full instruction for debugging
+        console.log('PumpFun instruction:', pumpInstruction);
+
+        // Check if this is a tracked wallet buying
+        const { description } = event;
+        const trackedLabels = Object.values(WALLET_LABELS).map(info => info.label);
+        
+        for (const label of trackedLabels) {
+            if (description.includes(`to ${label}`)) {
+                console.log(`Detected buy to tracked wallet ${label}`);
+                return 'BUY';
+            }
         }
 
-        const pumpEvents = pumpInstruction.innerInstructions?.find(inner => 
-            inner.programId === PUMPFUN_PROGRAM_ID
-        )?.events;
+        // If no tracked wallet is receiving, check if they're sending
+        for (const label of trackedLabels) {
+            if (description.startsWith(label)) {
+                console.log(`Detected sell from tracked wallet ${label}`);
+                return 'SELL';
+            }
+        }
 
-        if (pumpEvents) {
-            if (pumpEvents.isBuy === true) return 'BUY';
-            if (pumpEvents.isBuy === false) return 'SELL';
+        // If we can't determine from wallet labels, use token transfer direction
+        if (event.tokenTransfers && event.tokenTransfers.length > 0) {
+            const transfer = event.tokenTransfers[0];
+            const toWallet = transfer.toUserAccount;
+            
+            // Check if destination wallet is tracked
+            const isToTrackedWallet = Object.keys(WALLET_LABELS).includes(toWallet);
+            console.log('Token transfer destination check:', {
+                toWallet,
+                isToTrackedWallet
+            });
+            
+            return isToTrackedWallet ? 'BUY' : 'SELL';
         }
     }
 
-    const { description } = event;
-    const trackedLabels = Object.values(WALLET_LABELS).map(info => info.label);
-    
-    for (const label of trackedLabels) {
-        if (description.includes(`to ${label}`)) return 'BUY';
-        if (description.startsWith(label)) return 'SELL';
-    }
-
-    return 'SELL';
+    return 'SELL'; // Default fallback
 }
 
 // Modify handleRequest to include PumpFun logic
@@ -222,7 +233,7 @@ async function handleRequest(request) {
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
       let messageToSend = 
-        `${isBeingBought ? (isPumpFunTx ? '🎮🟢PF Buy' : '🟢🧪BuyTEST') : (isPumpFunTx ? '🎮🔴PF Sell' : '🔴🧪SellTESTERS')}\n` +
+        `${isBeingBought ? (isPumpFunTx ? '🎮🟢PF BuyTEST' : '🟢🧪BuyTEST') : (isPumpFunTx ? '🎮🔴PF SellTEST' : '🔴🧪SellTESTERS')}\n` +
         `${labeledDescription}\n\n` +
         `MC: ${marketCap}\n\n` +
         `<code>${tokenToDisplay}</code>`;
