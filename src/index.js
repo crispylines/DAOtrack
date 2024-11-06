@@ -337,24 +337,27 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
   let clusterInfo = '';
   let walletLabel = '';
 
+  // First find the wallet label
   for (const [wallet, info] of Object.entries(WALLET_LABELS)) {
-    const regex = new RegExp(wallet, 'g');
     if (description.includes(wallet)) {
-      labeledDescription = labeledDescription.replace(regex, info.label);
-      clusterInfo = `${info.cluster}`;
       walletLabel = info.label;
+      clusterInfo = `${info.cluster}`;
       break;
     }
   }
 
-  const tokenRegex = new RegExp(tokenAddress, 'g');
-  labeledDescription = labeledDescription.replace(tokenRegex, `${tokenMetadata.name} (${tokenMetadata.symbol})`);
-
-  labeledDescription = labeledDescription.replace(/(\d+(?:\.\d+)?)\s+([A-Z]+)/g, (match, amount, symbol) => {
-    const roundedAmount = Math.round(parseFloat(amount));
-    const formattedAmount = roundedAmount.toLocaleString();
-    return `${formattedAmount} ${symbol}`;
-  });
+  // Extract the token amount and name
+  const amountMatch = description.match(/(\d+(?:,\d+)*(?:\.\d+)?)\s+([^()]+?)\s*(\([^)]+\))?(?:\s+to|\s+from|$)/);
+  const amount = amountMatch ? amountMatch[1] : '';
+  
+  // Create simplified description
+  if (description.includes(' to ')) {
+    // It's a buy
+    labeledDescription = `${walletLabel} bought ${amount} ${tokenMetadata.name} (${tokenMetadata.symbol})`;
+  } else {
+    // It's a sell
+    labeledDescription = `${walletLabel} sold ${amount} ${tokenMetadata.name} (${tokenMetadata.symbol})`;
+  }
 
   return { labeledDescription, clusterInfo, walletLabel };
 }
