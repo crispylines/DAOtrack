@@ -77,6 +77,9 @@ const PUMPFUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 const SENT_MESSAGES = new Map();
 const MESSAGE_EXPIRY = 2 * 1000; // 2 seconds in milliseconds
 
+// Add this constant at the top with other constants
+const SOL_ADDRESS = 'So11111111111111111111111111111111111111112';
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -151,6 +154,15 @@ async function handleRequest(request) {
       instruction.programId === PUMPFUN_PROGRAM_ID
     );
 
+    // Add debug logging
+    console.log('Transaction type checks:', {
+      isSwap,
+      isRaydiumDirect,
+      isRaydiumRouted,
+      isPumpFunTx,
+      instructions: event?.instructions?.map(i => i.programId)
+    });
+
     if (isSwap || isRaydiumDirect || isRaydiumRouted || isPumpFunTx) {
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
@@ -175,7 +187,10 @@ async function handleRequest(request) {
       let tokenToDisplay, amount, isBeingBought;
 
       if (isPumpFunTx) {
-        const relevantTransfer = tokenTransfers.find(transfer => 
+        console.log('Processing PumpFun transaction');
+        console.log('Token transfers:', tokenTransfers);
+        
+        const relevantTransfer = tokenTransfers?.find(transfer => 
           transfer.mint !== SOL_ADDRESS
         );
         
@@ -185,8 +200,15 @@ async function handleRequest(request) {
         }
 
         tokenToDisplay = relevantTransfer.mint;
-        amount = relevantTransfer.amount;
+        amount = relevantTransfer.tokenAmount;
         isBeingBought = determinePumpFunAction(event) === 'BUY';
+        
+        console.log('PumpFun transaction details:', {
+          tokenToDisplay,
+          amount,
+          isBeingBought,
+          action: determinePumpFunAction(event)
+        });
       } else {
         const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
         const result = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
