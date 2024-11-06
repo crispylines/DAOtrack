@@ -56,13 +56,13 @@ const WALLET_LABELS = {
   '85H7h4PPrv4TVoJaSD7MtvdD32kuR9tCZpA8xjATJcm9': { label: '🥼#fwogCabal', cluster: 'cluster5' },
   'RFSqPtn1JfavGiUD4HJsZyYXvZsycxf31hnYfbyG6iB': { label: '🥼#sez1', cluster: 'cluster5' },
   'Fofeqp2E3ykxnsB84L5HHVvTwtmkZqMg6YQEVgYkNfdW': { label: '🥼#shock', cluster: 'cluster5' },
-  '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
-  'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
-  'FPbVekSCE9uN9mVt3m6tY1AcgCJgtsybP89aeJnpwEY7': { label: '🥼#TESTINGLOG3', cluster: 'cluster5' },
+ // '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
+//  'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
+  'GFJhtZuENEB9StZiacHUd1aoBoCtY2wWLskhgwcyfaYN': { label: '🥼#b16z', cluster: 'cluster5' },
 };
 
 //
-// Add the filtered wallets A8bzshzYKQU6SSttSi7cPdmA4zdPYRt5saxuK1PrTzEp, Gwv9NGzyQvUPYk7A5mhDXHVL88P39Eoz9omQ1SVgguMv, BYN8BfqXPef3YHUvmjfHyuVM6cHCLy72Y7TGrPt3h5mx
+// Add the filtered wallets A8bzshzYKQU6SSttSi7cPdmA4zdPYRt5saxuK1PrTzEp, Gwv9NGzyQvUPYk7A5mhDXHVL88P39Eoz9omQ1SVgguMv, BYN8BfqXPef3YHUvmjfHyuVM6cHCLy72Y7TGrPt3h5mx:::::::GFJhtZuENEB9StZiacHUd1aoBoCtY2wWLskhgwcyfaYN
 const FILTERED_WALLETS = [
   'JD38n7ynKYcgPpF7k1BhXEeREu1KqptU93fVGy3S624k',
   'JD25qVdtd65FoiXNmR89JjmoJdYk9sjYQeSTZAALFiMy',//autosnipe.ai
