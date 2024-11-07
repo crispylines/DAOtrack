@@ -241,53 +241,6 @@ async function handleRequest(request) {
       console.log('About to send message to Telegram:', messageToSend);
       await sendToTelegram(messageToSend, tokenToDisplay);
       console.log('Sent initial message to Telegram');
-
-      if (isBeingBought) {
-        const buyersKey = `buyers_${tokenToDisplay}`;
-        let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
-        console.log('Current buyers data:', buyersJson); // Debug log
-
-        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
-        console.log('Parsed buyers data:', buyersData); // Debug log
-
-        // Check if this is a new tracking session
-        const now = Date.now();
-        if (now - buyersData.firstBuyTime > 14400000) {
-          console.log('Resetting buyers data due to timeout'); // Debug log
-          buyersData = {
-            buyers: [],
-            firstBuyTime: now
-          };
-        }
-
-        if (!buyersData.buyers.includes(walletLabel)) {
-          console.log(`Adding new buyer ${walletLabel} to list`); // Debug log
-          buyersData.buyers.push(walletLabel);
-          await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
-          console.log(`Updated buyers list: ${buyersData.buyers.join(', ')}`); // Debug log
-
-          if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
-            console.log(`Triggering ${buyersData.buyers.length} buyers message`); // Debug log
-            const buyNumber = buyersData.buyers.length;
-            const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                                 `${buyNumber} Different Buyers Detected for\n\n` +
-                                 `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
-                                 `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
-                                 `MC: ${marketCap}\n\n` +
-                                 `<code>${tokenToDisplay}</code>`;
-
-            console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
-            await sendToTelegram(buyersMessage, tokenToDisplay);
-            console.log(`Sent ${buyNumber} buyers message to Telegram`);
-          }
-
-          // Clear tracking after 4th buyer
-          if (buyersData.buyers.length >= 4) {
-            await TOKEN_BUYS_2.delete(buyersKey);
-            console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
-          }
-        }
-      }
     } else {
       console.log('Not a SWAP event, ignoring.');
     }
