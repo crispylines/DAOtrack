@@ -96,8 +96,7 @@ async function handleRequest(request) {
 
     const event = requestBody[0];
     
-    
-    // Check for both SWAP type and Raydium program IDs
+    // Check for SWAP type and all Raydium program IDs (AMM, Router, and CLMM)
     const isSwap = event?.type === 'SWAP';
     const isRaydiumDirect = event?.instructions?.some(instruction => 
       instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
@@ -105,7 +104,11 @@ async function handleRequest(request) {
     const isRaydiumRouted = event?.instructions?.some(instruction => 
       instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
     );
-    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
+    const isRaydiumCLMM = event?.instructions?.some(instruction => 
+      instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
+    );
+
+    if (isSwap || isRaydiumDirect || isRaydiumRouted || isRaydiumCLMM) {
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
