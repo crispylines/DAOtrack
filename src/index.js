@@ -212,9 +212,9 @@ async function handleRequest(request) {
 }
 
 function analyzeSwap(tokenTransfers) {
-  
   // Handle case where tokenTransfers might be undefined or empty
-  if (!tokenTransfers || tokenTransfers.length < 2) {
+  if (!tokenTransfers || tokenTransfers.length === 0) {
+    console.log('No token transfers found');
     return {
       tokenIn: null,
       tokenOut: null,
@@ -223,13 +223,52 @@ function analyzeSwap(tokenTransfers) {
     };
   }
 
-  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
-  
+  // For CLMM, we need to look at the token transfers differently
+  // Log the token transfers for debugging
+  console.log('Token transfers:', JSON.stringify(tokenTransfers));
+
+  // Find the relevant token transfers
+  let tokenIn, tokenOut, amountIn, amountOut;
+
+  // For CLMM, there are typically two main transfers:
+  // 1. User -> Pool (token being sold)
+  // 2. Pool -> User (token being bought)
+  tokenTransfers.forEach(transfer => {
+    // Log each transfer for debugging
+    console.log('Processing transfer:', JSON.stringify(transfer));
+
+    if (transfer.fromUserAccount && transfer.toUserAccount) {
+      const isPoolAddress = (addr) => 
+        addr.includes('Pool') || 
+        addr.includes('Market') || 
+        addr.includes('Vault');
+
+      // If transferring to a pool, it's the input token
+      if (isPoolAddress(transfer.toUserAccount)) {
+        tokenIn = transfer.mint;
+        amountIn = transfer.amount;
+      }
+      // If transferring from a pool, it's the output token
+      else if (isPoolAddress(transfer.fromUserAccount)) {
+        tokenOut = transfer.mint;
+        amountOut = transfer.amount;
+      }
+    }
+  });
+
+  // Log the results
+  console.log('Analyzed swap:', {
+    tokenIn,
+    tokenOut,
+    amountIn,
+    amountOut
+  });
+
   return {
-    tokenIn: tokenInTransfer.mint,
-    tokenOut: tokenOutTransfer.mint,
-    amountIn: tokenInTransfer.amount,
-    amountOut: tokenOutTransfer.amount
+    tokenIn: tokenIn || null,
+    tokenOut: tokenOut || null,
+    amountIn: amountIn || 0,
+    amountOut: amountOut || 0
   };
 }
 
