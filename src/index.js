@@ -261,7 +261,8 @@ async function handleRequest(request) {
       const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(
         event.description || `Unknown wallet swapped SOL for ${tokenMetadata.name}`, 
         tokenToDisplay, 
-        tokenMetadata
+        tokenMetadata,
+        isBeingBought
       );
 
       const marketCap = await fetchMarketCap(tokenToDisplay);
@@ -416,7 +417,7 @@ function getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut) {
   }
 }
 
-function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetadata) {
+function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetadata, isBeingBought) {
   let labeledDescription = description;
   let clusterInfo = '';
   let walletLabel = '';
@@ -440,14 +441,30 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
     }
   }
 
+  // Extract amounts and format them correctly based on buy/sell
+  const amountMatch = description.match(/(\d+(?:\.\d+)?)\s+([^\s]+)\s+for\s+(\d+(?:\.\d+)?)\s+([^\s]+)/);
+  if (amountMatch) {
+    const [_, amount1, symbol1, amount2, symbol2] = amountMatch;
+    
+    if (isBeingBought) {
+      // For buys: "swapped X SOL for Y tokens"
+      labeledDescription = labeledDescription.replace(
+        /swapped.*?for/,
+        `swapped ${parseFloat(amount1).toLocaleString()} ${symbol1} for`
+      );
+    } else {
+      // For sells: "swapped X tokens for Y SOL"
+      if (symbol2.toLowerCase() === 'sol') {
+        labeledDescription = labeledDescription.replace(
+          /swapped.*?for/,
+          `swapped ${parseFloat(amount1).toLocaleString()} tokens for`
+        );
+      }
+    }
+  }
+
   const tokenRegex = new RegExp(tokenAddress, 'g');
   labeledDescription = labeledDescription.replace(tokenRegex, `${tokenMetadata.name} (${tokenMetadata.symbol})`);
-
-  labeledDescription = labeledDescription.replace(/(\d+(?:\.\d+)?)\s+([A-Z]+)/g, (match, amount, symbol) => {
-    const roundedAmount = Math.round(parseFloat(amount));
-    const formattedAmount = roundedAmount.toLocaleString();
-    return `${formattedAmount} ${symbol}`;
-  });
 
   return { labeledDescription, clusterInfo, walletLabel };
 }
