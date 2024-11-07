@@ -56,8 +56,8 @@ const WALLET_LABELS = {
   '85H7h4PPrv4TVoJaSD7MtvdD32kuR9tCZpA8xjATJcm9': { label: '🥼#fwogCabal', cluster: 'cluster5' },
   'RFSqPtn1JfavGiUD4HJsZyYXvZsycxf31hnYfbyG6iB': { label: '🥼#sez1', cluster: 'cluster5' },
   'Fofeqp2E3ykxnsB84L5HHVvTwtmkZqMg6YQEVgYkNfdW': { label: '🥼#shock', cluster: 'cluster5' },
-  '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
-  'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
+ // '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
+//  'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
   'GFJhtZuENEB9StZiacHUd1aoBoCtY2wWLskhgwcyfaYN': { label: '🥼#b16z', cluster: 'cluster5' },
 };
 
@@ -175,18 +175,6 @@ async function handleRequest(request) {
     });
 
     if (isSwap || isRaydiumDirect || isRaydiumRouted || isPumpFunTx) {
-      console.log('Processing transaction:', {
-        feePayer: event.feePayer,
-        type: {
-          isSwap,
-          isRaydiumDirect,
-          isRaydiumRouted,
-          isPumpFunTx
-        },
-        description: event.description,
-        tokenTransfers: event.tokenTransfers
-      });
-
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
@@ -233,55 +221,16 @@ async function handleRequest(request) {
           action: determinePumpFunAction(event)
         });
       } else {
-        // For both direct and routed Raydium transactions
         const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
         const result = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
         tokenToDisplay = result.tokenToDisplay;
         amount = result.amount;
-        
-        // Fix for Raydium routed transactions
-        if (isRaydiumRouted) {
-          // For routed transactions, check the feePayer to identify the wallet
-          const walletAddress = event.feePayer;
-          const walletInfo = WALLET_LABELS[walletAddress];
-          
-          // Create a description if none exists
-          if (!event.description) {
-            event.description = `${walletInfo ? walletInfo.label : walletAddress} swapped ${amountIn} SOL for ${amountOut} tokens`;
-          }
-          
-          // If SOL is being sent out (tokenIn is SOL), it's a buy
-          isBeingBought = tokenIn === SOL_ADDRESS;
-        } else {
-          isBeingBought = result.isBeingBought;
-        }
+        isBeingBought = result.isBeingBought;
       }
 
       const tokenMetadata = await getTokenMetadata(tokenToDisplay);
-      const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(
-        event.description || `Unknown wallet swapped SOL for ${tokenMetadata.name}`, 
-        tokenToDisplay, 
-        tokenMetadata
-      );
-
+      const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(description, tokenToDisplay, tokenMetadata);
       const marketCap = await fetchMarketCap(tokenToDisplay);
-
-      // Add validation before sending message
-      if (!tokenToDisplay) {
-        console.error('No token address to display, skipping message');
-        return new Response('No token address to display', { status: 200 });
-      }
-
-      // Log the data right before creating the message
-      console.log('Pre-message data:', {
-        tokenToDisplay,
-        tokenMetadata,
-        walletLabel,
-        isBeingBought,
-        marketCap,
-        description: event.description,
-        labeledDescription
-      });
 
       let messageToSend = 
         `${isBeingBought ? (isPumpFunTx ? '💊🟢PF Buy' : '🟢🧪Buy') : (isPumpFunTx ? '💊🔴PF Sell' : '🔴🧪Sell')}\n` +
@@ -293,9 +242,51 @@ async function handleRequest(request) {
       await sendToTelegram(messageToSend, tokenToDisplay);
       console.log('Sent initial message to Telegram');
 
-      // Only track buys for multiple buy detection
-      if (isBeingBought && walletLabel) {
-        await trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, marketCap);
+      if (isBeingBought) {
+        const buyersKey = `buyers_${tokenToDisplay}`;
+        let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
+        console.log('Current buyers data:', buyersJson); // Debug log
+
+        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
+        console.log('Parsed buyers data:', buyersData); // Debug log
+
+        // Check if this is a new tracking session
+        const now = Date.now();
+        if (now - buyersData.firstBuyTime > 14400000) {
+          console.log('Resetting buyers data due to timeout'); // Debug log
+          buyersData = {
+            buyers: [],
+            firstBuyTime: now
+          };
+        }
+
+        if (!buyersData.buyers.includes(walletLabel)) {
+          console.log(`Adding new buyer ${walletLabel} to list`); // Debug log
+          buyersData.buyers.push(walletLabel);
+          await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
+          console.log(`Updated buyers list: ${buyersData.buyers.join(', ')}`); // Debug log
+
+          if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
+            console.log(`Triggering ${buyersData.buyers.length} buyers message`); // Debug log
+            const buyNumber = buyersData.buyers.length;
+            const buyersMessage = `${('🧬').repeat(12)}\n\n` +
+                                 `${buyNumber} Different Buyers Detected for\n\n` +
+                                 `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
+                                 `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
+                                 `MC: ${marketCap}\n\n` +
+                                 `<code>${tokenToDisplay}</code>`;
+
+            console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
+            await sendToTelegram(buyersMessage, tokenToDisplay);
+            console.log(`Sent ${buyNumber} buyers message to Telegram`);
+          }
+
+          // Clear tracking after 4th buyer
+          if (buyersData.buyers.length >= 4) {
+            await TOKEN_BUYS_2.delete(buyersKey);
+            console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
+          }
+        }
       }
     } else {
       console.log('Not a SWAP event, ignoring.');
@@ -307,68 +298,10 @@ async function handleRequest(request) {
   }
 }
 
-// New function to handle buyer tracking and notifications
-async function trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, marketCap) {
-  const buyersKey = `buyers_${tokenToDisplay}`;
-  const now = Date.now();
-  
-  try {
-    let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
-    console.log('Retrieved buyers data:', buyersJson);
-    
-    let buyersData = JSON.parse(buyersJson || '{"buyers":[],"firstBuyTime":0}');
-    console.log('Parsed buyers data:', buyersData);
-
-    // Reset tracking if more than 4 hours have passed
-    if (now - buyersData.firstBuyTime > 14400000) {
-      console.log('Resetting tracking due to timeout');
-      buyersData = {
-        buyers: [],
-        firstBuyTime: now
-      };
-    }
-
-    // Set first buy time if this is the first buyer
-    if (buyersData.buyers.length === 0) {
-      buyersData.firstBuyTime = now;
-    }
-
-    // Filter out empty strings and duplicates before adding new buyer
-    buyersData.buyers = [...new Set(buyersData.buyers.filter(buyer => buyer))];
-    
-    // Add new buyer if not already tracked
-    if (!buyersData.buyers.includes(walletLabel)) {
-      buyersData.buyers.push(walletLabel);
-      await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
-      console.log(`Added buyer ${walletLabel}. Current buyers:`, buyersData.buyers);
-
-      // Send notification for 2-4 buyers
-      if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
-        const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                            `${buyersData.buyers.length} Different Buyers Detected for\n\n` +
-                            `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
-                            `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
-                            `MC: ${marketCap}\n\n` +
-                            `<code>${tokenToDisplay}</code>`;
-
-        await sendToTelegram(buyersMessage, tokenToDisplay);
-        console.log(`Sent ${buyersData.buyers.length} buyers notification`);
-      }
-
-      // Clear tracking after 4th buyer
-      if (buyersData.buyers.length >= 4) {
-        await TOKEN_BUYS_2.delete(buyersKey);
-        console.log(`Cleared tracking after 4th buyer for ${tokenToDisplay}`);
-      }
-    }
-  } catch (error) {
-    console.error('Error in trackBuyerAndNotify:', error);
-  }
-}
-
 function analyzeSwap(tokenTransfers) {
-  if (!tokenTransfers || !Array.isArray(tokenTransfers) || tokenTransfers.length < 2) {
-    console.error('Invalid tokenTransfers:', tokenTransfers);
+  
+  // Handle case where tokenTransfers might be undefined or empty
+  if (!tokenTransfers || tokenTransfers.length < 2) {
     return {
       tokenIn: null,
       tokenOut: null,
@@ -377,34 +310,14 @@ function analyzeSwap(tokenTransfers) {
     };
   }
 
-  try {
-    const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
-    
-    if (!tokenInTransfer?.mint || !tokenOutTransfer?.mint) {
-      console.error('Missing mint addresses in transfers:', { tokenInTransfer, tokenOutTransfer });
-      return {
-        tokenIn: null,
-        tokenOut: null,
-        amountIn: 0,
-        amountOut: 0
-      };
-    }
-
-    return {
-      tokenIn: tokenInTransfer.mint,
-      tokenOut: tokenOutTransfer.mint,
-      amountIn: tokenInTransfer.tokenAmount || 0,
-      amountOut: tokenOutTransfer.tokenAmount || 0
-    };
-  } catch (error) {
-    console.error('Error in analyzeSwap:', error);
-    return {
-      tokenIn: null,
-      tokenOut: null,
-      amountIn: 0,
-      amountOut: 0
-    };
-  }
+  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
+  
+  return {
+    tokenIn: tokenInTransfer.mint,
+    tokenOut: tokenOutTransfer.mint,
+    amountIn: tokenInTransfer.amount,
+    amountOut: tokenOutTransfer.amount
+  };
 }
 
 function getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut) {
@@ -416,21 +329,11 @@ function getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut) {
   }
 }
 
-function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetadata, isBeingBought) {
+function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetadata) {
   let labeledDescription = description;
   let clusterInfo = '';
   let walletLabel = '';
 
-  // If no description, try to use feePayer from event
-  if (!description) {
-    return {
-      labeledDescription: `Unknown transaction for ${tokenMetadata.name} (${tokenMetadata.symbol})`,
-      clusterInfo: '',
-      walletLabel: ''
-    };
-  }
-
-  // First replace wallet address with label
   for (const [wallet, info] of Object.entries(WALLET_LABELS)) {
     const regex = new RegExp(wallet, 'g');
     if (description.includes(wallet)) {
@@ -441,63 +344,43 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
     }
   }
 
-  // Extract amounts and format them correctly based on buy/sell
-  const amountMatch = description.match(/(\d+(?:\.\d+)?)\s+([^\s]+)\s+for\s+(\d+(?:\.\d+)?)\s+([^\s]+)/);
-  if (amountMatch) {
-    const [_, amount1, symbol1, amount2, symbol2] = amountMatch;
-    
-    if (isBeingBought) {
-      // For buys: "swapped X SOL for Y {tokenName} ({tokenSymbol})"
-      labeledDescription = `${walletLabel} swapped ${parseFloat(amount1).toLocaleString()} SOL for ${parseFloat(amount2).toLocaleString()} ${tokenMetadata.name} (${tokenMetadata.symbol})`;
-    } else {
-      // For sells: "swapped X {tokenName} ({tokenSymbol}) for Y SOL"
-      labeledDescription = `${walletLabel} swapped ${parseFloat(amount1).toLocaleString()} ${tokenMetadata.name} (${tokenMetadata.symbol}) for ${parseFloat(amount2).toLocaleString()} SOL`;
-    }
-  }
+  const tokenRegex = new RegExp(tokenAddress, 'g');
+  labeledDescription = labeledDescription.replace(tokenRegex, `${tokenMetadata.name} (${tokenMetadata.symbol})`);
+
+  labeledDescription = labeledDescription.replace(/(\d+(?:\.\d+)?)\s+([A-Z]+)/g, (match, amount, symbol) => {
+    const roundedAmount = Math.round(parseFloat(amount));
+    const formattedAmount = roundedAmount.toLocaleString();
+    return `${formattedAmount} ${symbol}`;
+  });
 
   return { labeledDescription, clusterInfo, walletLabel };
 }
 
 async function getTokenMetadata(tokenAddress) {
-  if (!tokenAddress) {
-    console.error('No token address provided to getTokenMetadata');
-    return { name: 'Unknown Token', symbol: 'UNKNOWN' };
-  }
-
-  try {
-    const response = await fetch(HELIUS_RPC_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  const response = await fetch(HELIUS_RPC_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'my-id',
+      method: 'getAsset',
+      params: {
+        id: tokenAddress,
       },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'my-id',
-        method: 'getAsset',
-        params: {
-          id: tokenAddress,
-        },
-      }),
-    });
+    }),
+  });
 
-    const data = await response.json();
+  const data = await response.json();
 
-    if (data.error) {
-      console.error('Error from Helius API:', data.error);
-      return { name: 'Unknown Token', symbol: 'UNKNOWN' };
-    }
-
-    if (!data.result || !data.result.content || !data.result.content.metadata) {
-      console.error('Invalid metadata response structure:', data);
-      return { name: 'Unknown Token', symbol: 'UNKNOWN' };
-    }
-
+  if (data.result) {
     return {
       name: data.result.content.metadata.name || 'Unknown Token',
       symbol: data.result.content.metadata.symbol || 'UNKNOWN',
     };
-  } catch (error) {
-    console.error('Failed to fetch token metadata:', error);
+  } else {
+    console.error('Failed to fetch token metadata:', data);
     return { name: 'Unknown Token', symbol: 'UNKNOWN' };
   }
 }
