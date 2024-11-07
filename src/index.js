@@ -131,7 +131,7 @@ async function handleRequest(request) {
       const transactionTimestamp = new Date(timestamp * 1000).toLocaleString();
       const transactionSignature = `https://solscan.io/tx/${signature}`;
 
-      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers, event);
 
       const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
 
@@ -211,7 +211,46 @@ async function handleRequest(request) {
   }
 }
 
-function analyzeSwap(tokenTransfers) {
+function analyzeSwap(tokenTransfers, event) {
+  // First check if this is a CLMM transaction
+  const isRaydiumCLMM = event?.instructions?.some(instruction => 
+    instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
+  );
+
+  if (isRaydiumCLMM) {
+    // Find the CLMM swap instruction
+    const clmmInstruction = event.instructions.find(instruction => 
+      instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
+    );
+
+    if (clmmInstruction) {
+      // Get the input and output vault mints from the instruction accounts
+      const inputVaultMint = clmmInstruction.accounts.find(acc => acc.name === 'Input Vault Mint')?.pubkey;
+      const outputVaultMint = clmmInstruction.accounts.find(acc => acc.name === 'Output Vault Mint')?.pubkey;
+
+      // Find the corresponding transfers in tokenTransfers
+      let inputTransfer, outputTransfer;
+      
+      tokenTransfers.forEach(transfer => {
+        if (transfer.mint === inputVaultMint) {
+          inputTransfer = transfer;
+        } else if (transfer.mint === outputVaultMint) {
+          outputTransfer = transfer;
+        }
+      });
+
+      console.log('CLMM Input Transfer:', inputTransfer);
+      console.log('CLMM Output Transfer:', outputTransfer);
+
+      return {
+        tokenIn: inputTransfer?.mint,
+        tokenOut: outputTransfer?.mint,
+        amountIn: inputTransfer?.amount || 0,
+        amountOut: outputTransfer?.amount || 0
+      };
+    }
+  }
+
   // Handle case where tokenTransfers might be undefined or empty
   if (!tokenTransfers || tokenTransfers.length === 0) {
     console.log('No token transfers found');
@@ -223,52 +262,14 @@ function analyzeSwap(tokenTransfers) {
     };
   }
 
-  // For CLMM, we need to look at the token transfers differently
-  // Log the token transfers for debugging
-  console.log('Token transfers:', JSON.stringify(tokenTransfers));
-
-  // Find the relevant token transfers
-  let tokenIn, tokenOut, amountIn, amountOut;
-
-  // For CLMM, there are typically two main transfers:
-  // 1. User -> Pool (token being sold)
-  // 2. Pool -> User (token being bought)
-  tokenTransfers.forEach(transfer => {
-    // Log each transfer for debugging
-    console.log('Processing transfer:', JSON.stringify(transfer));
-
-    if (transfer.fromUserAccount && transfer.toUserAccount) {
-      const isPoolAddress = (addr) => 
-        addr.includes('Pool') || 
-        addr.includes('Market') || 
-        addr.includes('Vault');
-
-      // If transferring to a pool, it's the input token
-      if (isPoolAddress(transfer.toUserAccount)) {
-        tokenIn = transfer.mint;
-        amountIn = transfer.amount;
-      }
-      // If transferring from a pool, it's the output token
-      else if (isPoolAddress(transfer.fromUserAccount)) {
-        tokenOut = transfer.mint;
-        amountOut = transfer.amount;
-      }
-    }
-  });
-
-  // Log the results
-  console.log('Analyzed swap:', {
-    tokenIn,
-    tokenOut,
-    amountIn,
-    amountOut
-  });
-
+  // Original logic for non-CLMM swaps
+  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
+  
   return {
-    tokenIn: tokenIn || null,
-    tokenOut: tokenOut || null,
-    amountIn: amountIn || 0,
-    amountOut: amountOut || 0
+    tokenIn: tokenInTransfer?.mint,
+    tokenOut: tokenOutTransfer?.mint,
+    amountIn: tokenInTransfer?.amount || 0,
+    amountOut: tokenOutTransfer?.amount || 0
   };
 }
 
