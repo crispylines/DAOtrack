@@ -430,6 +430,7 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
     };
   }
 
+  // First replace wallet address with label
   for (const [wallet, info] of Object.entries(WALLET_LABELS)) {
     const regex = new RegExp(wallet, 'g');
     if (description.includes(wallet)) {
@@ -446,22 +447,13 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
     const [_, amount1, symbol1, amount2, symbol2] = amountMatch;
     
     if (isBeingBought) {
-      // For buys: "swapped X SOL for Y tokens"
-      labeledDescription = labeledDescription.replace(
-        /swapped.*?for/,
-        `swapped ${parseFloat(amount1).toLocaleString()} SOL for`
-      );
+      // For buys: "swapped X SOL for Y {tokenName} ({tokenSymbol})"
+      labeledDescription = `${walletLabel} swapped ${parseFloat(amount1).toLocaleString()} SOL for ${parseFloat(amount2).toLocaleString()} ${tokenMetadata.name} (${tokenMetadata.symbol})`;
     } else {
-      // For sells: "swapped X tokens for Y SOL"
-      labeledDescription = labeledDescription.replace(
-        /swapped.*?for/,
-        `swapped ${parseFloat(amount2).toLocaleString()} tokens for ${parseFloat(amount1).toLocaleString()} SOL`
-      );
+      // For sells: "swapped X {tokenName} ({tokenSymbol}) for Y SOL"
+      labeledDescription = `${walletLabel} swapped ${parseFloat(amount1).toLocaleString()} ${tokenMetadata.name} (${tokenMetadata.symbol}) for ${parseFloat(amount2).toLocaleString()} SOL`;
     }
   }
-
-  const tokenRegex = new RegExp(tokenAddress, 'g');
-  labeledDescription = labeledDescription.replace(tokenRegex, `${tokenMetadata.name} (${tokenMetadata.symbol})`);
 
   return { labeledDescription, clusterInfo, walletLabel };
 }
