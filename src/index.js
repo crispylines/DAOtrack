@@ -221,19 +221,25 @@ async function handleRequest(request) {
           action: determinePumpFunAction(event)
         });
       } else {
+        // For both direct and routed Raydium transactions
         const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
         const result = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
         tokenToDisplay = result.tokenToDisplay;
         amount = result.amount;
-        isBeingBought = result.isBeingBought;
+        isBeingBought = isRaydiumRouted ? (event.tokenTransfers[1].mint === SOL_ADDRESS) : result.isBeingBought;
       }
 
       const tokenMetadata = await getTokenMetadata(tokenToDisplay);
-      const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(description, tokenToDisplay, tokenMetadata);
+      const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(
+        event.description || `Unknown wallet swapped SOL for ${tokenMetadata.name}`, 
+        tokenToDisplay, 
+        tokenMetadata
+      );
+
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
       let messageToSend = 
-        `${isBeingBought ? (isPumpFunTx ? '💊🟢PF BuyTEST' : '🟢🧪BuyTEST') : (isPumpFunTx ? '💊🔴PF SellTEST' : '🔴🧪SellTEST')}\n` +
+        `${isBeingBought ? (isPumpFunTx ? '💊🟢PF Buy' : '🟢🧪Buy') : (isPumpFunTx ? '💊🔴PF Sell' : '🔴🧪Sell')}\n` +
         `${labeledDescription}\n\n` +
         `MC: ${marketCap}\n\n` +
         `<code>${tokenToDisplay}</code>`;
@@ -242,7 +248,8 @@ async function handleRequest(request) {
       await sendToTelegram(messageToSend, tokenToDisplay);
       console.log('Sent initial message to Telegram');
 
-      if (isBeingBought) {
+      // Only track buys for multiple buy detection
+      if (isBeingBought && walletLabel) {
         await trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, marketCap);
       }
     } else {
@@ -281,6 +288,9 @@ async function trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, m
       buyersData.firstBuyTime = now;
     }
 
+    // Filter out empty strings and duplicates before adding new buyer
+    buyersData.buyers = [...new Set(buyersData.buyers.filter(buyer => buyer))];
+    
     // Add new buyer if not already tracked
     if (!buyersData.buyers.includes(walletLabel)) {
       buyersData.buyers.push(walletLabel);
