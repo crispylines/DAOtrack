@@ -261,8 +261,7 @@ async function handleRequest(request) {
       const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(
         event.description || `Unknown wallet swapped SOL for ${tokenMetadata.name}`, 
         tokenToDisplay, 
-        tokenMetadata,
-        isBeingBought
+        tokenMetadata
       );
 
       const marketCap = await fetchMarketCap(tokenToDisplay);
@@ -450,16 +449,14 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
       // For buys: "swapped X SOL for Y tokens"
       labeledDescription = labeledDescription.replace(
         /swapped.*?for/,
-        `swapped ${parseFloat(amount1).toLocaleString()} ${symbol1} for`
+        `swapped ${parseFloat(amount1).toLocaleString()} SOL for`
       );
     } else {
       // For sells: "swapped X tokens for Y SOL"
-      if (symbol2.toLowerCase() === 'sol') {
-        labeledDescription = labeledDescription.replace(
-          /swapped.*?for/,
-          `swapped ${parseFloat(amount1).toLocaleString()} tokens for`
-        );
-      }
+      labeledDescription = labeledDescription.replace(
+        /swapped.*?for/,
+        `swapped ${parseFloat(amount2).toLocaleString()} tokens for ${parseFloat(amount1).toLocaleString()} SOL`
+      );
     }
   }
 
