@@ -73,7 +73,7 @@ const FILTERED_WALLETS = [
 const PROCESSED_TXS = new Set();
 
 // Add these constants at the top with other constants
-const PUMPFUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+
 const SENT_MESSAGES = new Map();
 const MESSAGE_EXPIRY = 2 * 1000; // 2 seconds in milliseconds
 
@@ -162,7 +162,7 @@ async function handleRequest(request) {
       instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
     );
     const isPumpFunTx = event?.instructions?.some(instruction => 
-      instruction.programId === PUMPFUN_PROGRAM_ID
+      instruction.programId === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
     );
 
     // Add debug logging
