@@ -140,7 +140,7 @@ async function handleRequest(request) {
 
       //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
       let messageToSend = 
-                          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
+                          `${isBeingBought ? '🟢🧪Buy' : '🔴🧪Sell'}\n` +
                           `${labeledDescription}\n\n` +
                           `MC: ${marketCap}\n\n` +
                           `<code>${tokenToDisplay}</code>`;
