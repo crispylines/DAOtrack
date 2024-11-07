@@ -58,7 +58,7 @@ const WALLET_LABELS = {
   'Fofeqp2E3ykxnsB84L5HHVvTwtmkZqMg6YQEVgYkNfdW': { label: '🥼#shock', cluster: 'cluster5' },
   '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
   'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
-  'FPbVekSCE9uN9mVt3m6tY1AcgCJgtsybP89aeJnpwEY7': { label: '🥼#TESTINGLOG3', cluster: 'cluster5' },
+  'GFJhtZuENEB9StZiacHUd1aoBoCtY2wWLskhgwcyfaYN': { label: '🥼#b16z', cluster: 'cluster5' },
 };
 
 //
@@ -96,7 +96,7 @@ async function handleRequest(request) {
 
     const event = requestBody[0];
     
-    // Check for SWAP type and all Raydium program IDs (AMM, Router, and CLMM)
+    // Check for both SWAP type and Raydium program IDs
     const isSwap = event?.type === 'SWAP';
     const isRaydiumDirect = event?.instructions?.some(instruction => 
       instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
@@ -104,18 +104,15 @@ async function handleRequest(request) {
     const isRaydiumRouted = event?.instructions?.some(instruction => 
       instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
     );
-    const isRaydiumCLMM = event?.instructions?.some(instruction => 
-      instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
-    );
 
-    if (isSwap || isRaydiumDirect || isRaydiumRouted || isRaydiumCLMM) {
+    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
         return new Response('Already processed.', { status: 200 });
       }
       PROCESSED_TXS.add(event.signature);
-
+      
       // Clear old signatures periodically (keep last 1000)
       if (PROCESSED_TXS.size > 1000) {
         const entries = Array.from(PROCESSED_TXS);
@@ -131,7 +128,7 @@ async function handleRequest(request) {
       const transactionTimestamp = new Date(timestamp * 1000).toLocaleString();
       const transactionSignature = `https://solscan.io/tx/${signature}`;
 
-      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers, event);
+      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
 
       const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
 
@@ -156,7 +153,7 @@ async function handleRequest(request) {
         const buyersKey = `buyers_${tokenToDisplay}`;
         let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
         let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
-
+        
         // Check if this is a new tracking session or if the old one expired (4 hours = 14400000 ms)
         const now = Date.now();
         if (now - buyersData.firstBuyTime > 14400000) {
@@ -188,7 +185,7 @@ async function handleRequest(request) {
                                  `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
                                  `MC: ${marketCap}\n\n` +
                                  `<code>${tokenToDisplay}</code>`;
-
+            
             console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
             await sendToTelegram(buyersMessage, tokenToDisplay);
             console.log(`Sent ${buyNumber} buyers message to Telegram`);
@@ -211,49 +208,9 @@ async function handleRequest(request) {
   }
 }
 
-function analyzeSwap(tokenTransfers, event) {
-  // First check if this is a CLMM transaction
-  const isRaydiumCLMM = event?.instructions?.some(instruction => 
-    instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
-  );
-
-  if (isRaydiumCLMM) {
-    // Find the CLMM swap instruction
-    const clmmInstruction = event.instructions.find(instruction => 
-      instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
-    );
-
-    if (clmmInstruction) {
-      // Get the input and output vault mints from the instruction accounts
-      const inputVaultMint = clmmInstruction.accounts.find(acc => acc.name === 'Input Vault Mint')?.pubkey;
-      const outputVaultMint = clmmInstruction.accounts.find(acc => acc.name === 'Output Vault Mint')?.pubkey;
-
-      // Find the corresponding transfers in tokenTransfers
-      let inputTransfer, outputTransfer;
-      
-      tokenTransfers.forEach(transfer => {
-        if (transfer.mint === inputVaultMint) {
-          inputTransfer = transfer;
-        } else if (transfer.mint === outputVaultMint) {
-          outputTransfer = transfer;
-        }
-      });
-
-      console.log('CLMM Input Transfer:', inputTransfer);
-      console.log('CLMM Output Transfer:', outputTransfer);
-
-      return {
-        tokenIn: inputTransfer?.mint,
-        tokenOut: outputTransfer?.mint,
-        amountIn: inputTransfer?.amount || 0,
-        amountOut: outputTransfer?.amount || 0
-      };
-    }
-  }
-
+function analyzeSwap(tokenTransfers) {
   // Handle case where tokenTransfers might be undefined or empty
-  if (!tokenTransfers || tokenTransfers.length === 0) {
-    console.log('No token transfers found');
+  if (!tokenTransfers || tokenTransfers.length < 2) {
     return {
       tokenIn: null,
       tokenOut: null,
@@ -262,14 +219,13 @@ function analyzeSwap(tokenTransfers, event) {
     };
   }
 
-  // Original logic for non-CLMM swaps
   const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
   
   return {
-    tokenIn: tokenInTransfer?.mint,
-    tokenOut: tokenOutTransfer?.mint,
-    amountIn: tokenInTransfer?.amount || 0,
-    amountOut: tokenOutTransfer?.amount || 0
+    tokenIn: tokenInTransfer.mint,
+    tokenOut: tokenOutTransfer.mint,
+    amountIn: tokenInTransfer.amount,
+    amountOut: tokenOutTransfer.amount
   };
 }
 
@@ -326,7 +282,7 @@ async function getTokenMetadata(tokenAddress) {
   });
 
   const data = await response.json();
-
+  
   if (data.result) {
     return {
       name: data.result.content.metadata.name || 'Unknown Token',
@@ -343,14 +299,14 @@ async function fetchMarketCap(tokenAddress) {
   try {
     const response = await fetch(dexscreenerUrl);
     const data = await response.json();
-
+    
     if (data.pairs && data.pairs.length > 0) {
       // Sort pairs by liquidity in descending order
       const sortedPairs = data.pairs.sort((a, b) => b.liquidity.usd - a.liquidity.usd);
-
+      
       // Get the pair with the highest liquidity
       const topPair = sortedPairs[0];
-
+      
       if (topPair.fdv) {
         const marketCap = parseFloat(topPair.fdv);
         if (marketCap) {
@@ -373,9 +329,9 @@ async function fetchMarketCap(tokenAddress) {
 
 async function sendToTelegram(message, tokenAddress) {
   const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-
+  
   console.log('Sending message to Telegram:', { message, tokenAddress });
-
+  
   const inlineKeyboard = {
     inline_keyboard: [
       [
