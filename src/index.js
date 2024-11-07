@@ -229,6 +229,15 @@ async function handleRequest(request) {
         
         // Fix for Raydium routed transactions
         if (isRaydiumRouted) {
+          // For routed transactions, check the feePayer to identify the wallet
+          const walletAddress = event.feePayer;
+          const walletInfo = WALLET_LABELS[walletAddress];
+          
+          // Create a description if none exists
+          if (!event.description) {
+            event.description = `${walletInfo ? walletInfo.label : walletAddress} swapped ${amountIn} SOL for ${amountOut} tokens`;
+          }
+          
           // If SOL is being sent out (tokenIn is SOL), it's a buy
           isBeingBought = tokenIn === SOL_ADDRESS;
         } else {
@@ -363,6 +372,15 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
   let labeledDescription = description;
   let clusterInfo = '';
   let walletLabel = '';
+
+  // If no description, try to use feePayer from event
+  if (!description) {
+    return {
+      labeledDescription: `Unknown transaction for ${tokenMetadata.name} (${tokenMetadata.symbol})`,
+      clusterInfo: '',
+      walletLabel: ''
+    };
+  }
 
   for (const [wallet, info] of Object.entries(WALLET_LABELS)) {
     const regex = new RegExp(wallet, 'g');
