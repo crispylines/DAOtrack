@@ -104,11 +104,8 @@ async function handleRequest(request) {
     const isRaydiumRouted = event?.instructions?.some(instruction => 
       instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
     );
-    const isRaydiumCLMM = event?.instructions?.some(instruction =>
-      instruction.programId === 'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'
-    );
 
-    if (isSwap || isRaydiumDirect || isRaydiumRouted || isRaydiumCLMM) {
+    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
@@ -141,20 +138,12 @@ async function handleRequest(request) {
 
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
-      // Modify message format for CLMM swaps
-      let messageToSend;
-      if (isRaydiumCLMM) {
-        messageToSend = 
-          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
-          `${walletLabel}\n\n` +
-          `${tokenMetadata.name}`;
-      } else {
-        messageToSend = 
-          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
-          `${labeledDescription}\n\n` +
-          `MC: ${marketCap}\n\n` +
-          `<code>${tokenToDisplay}</code>`;
-      }
+      //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
+      let messageToSend = 
+                          `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
+                          `${labeledDescription}\n\n` +
+                          `MC: ${marketCap}\n\n` +
+                          `<code>${tokenToDisplay}</code>`;
 
       console.log('About to send message to Telegram:', messageToSend);
       await sendToTelegram(messageToSend, tokenToDisplay);
