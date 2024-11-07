@@ -56,8 +56,8 @@ const WALLET_LABELS = {
   '85H7h4PPrv4TVoJaSD7MtvdD32kuR9tCZpA8xjATJcm9': { label: '🥼#fwogCabal', cluster: 'cluster5' },
   'RFSqPtn1JfavGiUD4HJsZyYXvZsycxf31hnYfbyG6iB': { label: '🥼#sez1', cluster: 'cluster5' },
   'Fofeqp2E3ykxnsB84L5HHVvTwtmkZqMg6YQEVgYkNfdW': { label: '🥼#shock', cluster: 'cluster5' },
-  '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
-  'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
+ // '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
+  //'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
   'GFJhtZuENEB9StZiacHUd1aoBoCtY2wWLskhgwcyfaYN': { label: '🥼#b16z', cluster: 'cluster5' },
 };
 
@@ -71,6 +71,10 @@ const FILTERED_WALLETS = [
 
 // Add at the top with other constants
 const PROCESSED_TXS = new Set();
+
+// Add these constants at the top with other constants
+const PUMPFUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+const SOL_ADDRESS = 'So11111111111111111111111111111111111111112';
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
@@ -89,123 +93,203 @@ function isWalletFiltered(event) {
   return checkFields.some(field => FILTERED_WALLETS.includes(field));
 }
 
-async function handleRequest(request) {
-  if (request.method === 'POST') {
-    const requestBody = await request.json();
-    console.log('Received POST request with body:', requestBody);
+// Add new function to determine PumpFun transaction type
+function determinePumpFunAction(event) {
+    const pumpInstruction = event.instructions?.find(instruction => 
+        instruction.programId === PUMPFUN_PROGRAM_ID
+    );
 
-    const event = requestBody[0];
+    if (pumpInstruction) {
+        if (pumpInstruction.data?.toString().includes('PumpBuy')) {
+            console.log('Detected explicit PumpBuy instruction');
+            return 'BUY';
+        }
+        if (pumpInstruction.data?.toString().includes('PumpSell')) {
+            console.log('Detected explicit PumpSell instruction');
+            return 'SELL';
+        }
+    }
+
+    // Default to SELL if we can't determine the action
+    return 'SELL';
+}
+
+// Add new function to handle PumpFun transactions
+async function handlePumpFunTransaction(event) {
+    console.log('Processing PumpFun transaction');
     
-    // Check for both SWAP type and Raydium program IDs
-    const isSwap = event?.type === 'SWAP';
-    const isRaydiumDirect = event?.instructions?.some(instruction => 
-      instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
+    const relevantTransfer = event.tokenTransfers?.find(transfer => 
+        transfer.mint !== SOL_ADDRESS
     );
-    const isRaydiumRouted = event?.instructions?.some(instruction => 
-      instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
+    
+    if (!relevantTransfer) {
+        console.log('No relevant token transfer found in PumpFun transaction');
+        return null;
+    }
+
+    const tokenToDisplay = relevantTransfer.mint;
+    const amount = relevantTransfer.tokenAmount;
+    const isBeingBought = determinePumpFunAction(event) === 'BUY';
+    
+    console.log('PumpFun transaction details:', {
+        tokenToDisplay,
+        amount,
+        isBeingBought
+    });
+
+    const tokenMetadata = await getTokenMetadata(tokenToDisplay);
+    const { labeledDescription } = replaceWalletWithLabelAndCluster(
+        event.description, 
+        tokenToDisplay, 
+        tokenMetadata
     );
+    const marketCap = await fetchMarketCap(tokenToDisplay);
 
-    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
-      // Add duplicate transaction check
-      if (PROCESSED_TXS.has(event.signature)) {
-        console.log('Already processed this transaction, skipping');
-        return new Response('Already processed.', { status: 200 });
-      }
-      PROCESSED_TXS.add(event.signature);
-      
-      // Clear old signatures periodically (keep last 1000)
-      if (PROCESSED_TXS.size > 1000) {
-        const entries = Array.from(PROCESSED_TXS);
-        entries.slice(0, entries.length - 1000).forEach(sig => PROCESSED_TXS.delete(sig));
-      }
+    const messageToSend = 
+        `${isBeingBought ? '🎮🟢PF Buy' : '🎮🔴PF Sell'}\n` +
+        `${labeledDescription}\n\n` +
+        `MC: ${marketCap}\n\n` +
+        `<code>${tokenToDisplay}</code>`;
 
-      if (isWalletFiltered(event)) {
-        console.log('Wallet filtered, not processing this swap');
-        return new Response('Filtered wallet, not processed.', { status: 200 });
-      }
+    await sendToTelegram(messageToSend, tokenToDisplay);
+    return true;
+}
 
-      const { description, timestamp, signature, tokenTransfers } = event;
-      const transactionTimestamp = new Date(timestamp * 1000).toLocaleString();
-      const transactionSignature = `https://solscan.io/tx/${signature}`;
+// Modify handleRequest to separate PumpFun and Raydium logic
+async function handleRequest(request) {
+    if (request.method === 'POST') {
+        const requestBody = await request.json();
+        console.log('Received POST request with body:', requestBody);
 
-      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+        const event = requestBody[0];
+        
+        // Check for transaction types
+        const isPumpFunTx = event?.instructions?.some(instruction => 
+            instruction.programId === PUMPFUN_PROGRAM_ID
+        );
+        const isSwap = event?.type === 'SWAP';
+        const isRaydiumDirect = event?.instructions?.some(instruction => 
+            instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
+        );
+        const isRaydiumRouted = event?.instructions?.some(instruction => 
+            instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
+        );
 
-      const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
+        // Add duplicate transaction check
+        if (PROCESSED_TXS.has(event.signature)) {
+            console.log('Already processed this transaction, skipping');
+            return new Response('Already processed.', { status: 200 });
+        }
+        PROCESSED_TXS.add(event.signature);
 
-      const tokenMetadata = await getTokenMetadata(tokenToDisplay);
+        // Handle PumpFun transactions separately
+        if (isPumpFunTx) {
+            const processed = await handlePumpFunTransaction(event);
+            return new Response(processed ? 'Processed PumpFun transaction.' : 'Skipped PumpFun transaction.', { status: 200 });
+        }
 
-      const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(description, tokenToDisplay, tokenMetadata);
+        // Original Raydium logic remains unchanged
+        if (isSwap || isRaydiumDirect || isRaydiumRouted) {
+            // Add duplicate transaction check
+            if (PROCESSED_TXS.has(event.signature)) {
+                console.log('Already processed this transaction, skipping');
+                return new Response('Already processed.', { status: 200 });
+            }
+            PROCESSED_TXS.add(event.signature);
+            
+            // Clear old signatures periodically (keep last 1000)
+            if (PROCESSED_TXS.size > 1000) {
+                const entries = Array.from(PROCESSED_TXS);
+                entries.slice(0, entries.length - 1000).forEach(sig => PROCESSED_TXS.delete(sig));
+            }
 
-      const marketCap = await fetchMarketCap(tokenToDisplay);
+            if (isWalletFiltered(event)) {
+                console.log('Wallet filtered, not processing this swap');
+                return new Response('Filtered wallet, not processed.', { status: 200 });
+            }
 
-      //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
-      let messageToSend = 
+            const { description, timestamp, signature, tokenTransfers } = event;
+            const transactionTimestamp = new Date(timestamp * 1000).toLocaleString();
+            const transactionSignature = `https://solscan.io/tx/${signature}`;
+
+            const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+
+            const { tokenToDisplay, amount, isBeingBought } = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
+
+            const tokenMetadata = await getTokenMetadata(tokenToDisplay);
+
+            const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(description, tokenToDisplay, tokenMetadata);
+
+            const marketCap = await fetchMarketCap(tokenToDisplay);
+
+            //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
+            let messageToSend = 
                           `${isBeingBought ? '🟢🧪BuyTEST' : '🔴🧪SellTESTERS'}\n` +
                           `${labeledDescription}\n\n` +
                           `MC: ${marketCap}\n\n` +
                           `<code>${tokenToDisplay}</code>`;
 
-      console.log('About to send message to Telegram:', messageToSend);
-      await sendToTelegram(messageToSend, tokenToDisplay);
-      console.log('Sent initial message to Telegram');
+            console.log('About to send message to Telegram:', messageToSend);
+            await sendToTelegram(messageToSend, tokenToDisplay);
+            console.log('Sent initial message to Telegram');
 
-      if (isBeingBought) {
-        const buyersKey = `buyers_${tokenToDisplay}`;
-        let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
-        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
-        
-        // Check if this is a new tracking session or if the old one expired (4 hours = 14400000 ms)
-        const now = Date.now();
-        if (now - buyersData.firstBuyTime > 14400000) {
-          // Reset if more than 4 hours passed
-          buyersData = {
-            buyers: [],
-            firstBuyTime: now
-          };
+            if (isBeingBought) {
+                const buyersKey = `buyers_${tokenToDisplay}`;
+                let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
+                let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
+                
+                // Check if this is a new tracking session or if the old one expired (4 hours = 14400000 ms)
+                const now = Date.now();
+                if (now - buyersData.firstBuyTime > 14400000) {
+                    // Reset if more than 4 hours passed
+                    buyersData = {
+                        buyers: [],
+                        firstBuyTime: now
+                    };
+                }
+
+                // If this is the first buy, set the time
+                if (buyersData.buyers.length === 0) {
+                    buyersData.firstBuyTime = now;
+                }
+
+                // Add new buyer if not already present
+                if (!buyersData.buyers.includes(walletLabel)) {
+                    buyersData.buyers.push(walletLabel);
+                    await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
+
+                    console.log(`Current buyers for ${tokenToDisplay}: ${buyersData.buyers.join(', ')}`);
+
+                    // Check for multiple buyers milestones (2, 3, or 4 buyers)
+                    if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
+                        const buyNumber = buyersData.buyers.length;
+                        const buyersMessage = `${('🧬').repeat(12)}\n\n` +
+                                             `${buyNumber} Different Buyers Detected for\n\n` +
+                                             `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
+                                             `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
+                                             `MC: ${marketCap}\n\n` +
+                                             `<code>${tokenToDisplay}</code>`;
+                        
+                        console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
+                        await sendToTelegram(buyersMessage, tokenToDisplay);
+                        console.log(`Sent ${buyNumber} buyers message to Telegram`);
+                    }
+
+                    // Clear tracking after 4th buyer
+                    if (buyersData.buyers.length >= 4) {
+                        await TOKEN_BUYS_2.delete(buyersKey);
+                        console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
+                    }
+                }
+            }
+        } else {
+            console.log('Not a SWAP event, ignoring.');
         }
 
-        // If this is the first buy, set the time
-        if (buyersData.buyers.length === 0) {
-          buyersData.firstBuyTime = now;
-        }
-
-        // Add new buyer if not already present
-        if (!buyersData.buyers.includes(walletLabel)) {
-          buyersData.buyers.push(walletLabel);
-          await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
-
-          console.log(`Current buyers for ${tokenToDisplay}: ${buyersData.buyers.join(', ')}`);
-
-          // Check for multiple buyers milestones (2, 3, or 4 buyers)
-          if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
-            const buyNumber = buyersData.buyers.length;
-            const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                                 `${buyNumber} Different Buyers Detected for\n\n` +
-                                 `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
-                                 `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
-                                 `MC: ${marketCap}\n\n` +
-                                 `<code>${tokenToDisplay}</code>`;
-            
-            console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
-            await sendToTelegram(buyersMessage, tokenToDisplay);
-            console.log(`Sent ${buyNumber} buyers message to Telegram`);
-          }
-
-          // Clear tracking after 4th buyer
-          if (buyersData.buyers.length >= 4) {
-            await TOKEN_BUYS_2.delete(buyersKey);
-            console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
-          }
-        }
-      }
+        return new Response('Processed POST request body.', { status: 200 });
     } else {
-      console.log('Not a SWAP event, ignoring.');
+        return new Response('Method not allowed.', { status: 405 });
     }
-
-    return new Response('Processed POST request body.', { status: 200 });
-  } else {
-    return new Response('Method not allowed.', { status: 405 });
-  }
 }
 
 function analyzeSwap(tokenTransfers) {
