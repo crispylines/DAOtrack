@@ -153,56 +153,83 @@ async function handleRequest(request) {
 
     const event = requestBody[0];
     
-    // Add validation for required fields
-    if (!event || !event.description) {
-      console.log('Invalid event data:', event);
-      return new Response('Invalid event data.', { status: 200 });
-    }
+    // Check for both SWAP type, Raydium, and PumpFun transactions
+    const isSwap = event?.type === 'SWAP';
+    const isRaydiumDirect = event?.instructions?.some(instruction => 
+      instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
+    );
+    const isRaydiumRouted = event?.instructions?.some(instruction => 
+      instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
+    );
+    const isPumpFunTx = event?.instructions?.some(instruction => 
+      instruction.programId === PUMPFUN_PROGRAM_ID
+    );
 
-    // Rest of your existing checks...
+    // Add debug logging
+    console.log('Transaction type checks:', {
+      isSwap,
+      isRaydiumDirect,
+      isRaydiumRouted,
+      isPumpFunTx,
+      instructions: event?.instructions?.map(i => i.programId)
+    });
 
     if (isSwap || isRaydiumDirect || isRaydiumRouted || isPumpFunTx) {
-      // Existing duplicate check code...
+      // Add duplicate transaction check
+      if (PROCESSED_TXS.has(event.signature)) {
+        console.log('Already processed this transaction, skipping');
+        return new Response('Already processed.', { status: 200 });
+      }
+      PROCESSED_TXS.add(event.signature);
+
+      // Clear old signatures periodically (keep last 1000)
+      if (PROCESSED_TXS.size > 1000) {
+        const entries = Array.from(PROCESSED_TXS);
+        entries.slice(0, entries.length - 1000).forEach(sig => PROCESSED_TXS.delete(sig));
+      }
+
+      if (isWalletFiltered(event)) {
+        console.log('Wallet filtered, not processing this transaction');
+        return new Response('Filtered wallet, not processed.', { status: 200 });
+      }
+
+      const { description, timestamp, signature, tokenTransfers } = event;
 
       let tokenToDisplay, amount, isBeingBought;
 
       if (isPumpFunTx) {
-        // Existing PumpFun logic...
-      } else {
-        const swapAnalysis = analyzeSwap(tokenTransfers);
-        if (!swapAnalysis) {
-          console.log('Invalid swap analysis, skipping message');
-          return new Response('Invalid swap data.', { status: 200 });
-        }
-
-        const result = getTokenToDisplay(swapAnalysis.tokenIn, swapAnalysis.tokenOut, 
-                                      swapAnalysis.amountIn, swapAnalysis.amountOut);
+        console.log('Processing PumpFun transaction');
+        console.log('Token transfers:', tokenTransfers);
         
-        if (!result.tokenToDisplay) {
-          console.log('No valid token to display, skipping message');
-          return new Response('No valid token to display.', { status: 200 });
+        const relevantTransfer = tokenTransfers?.find(transfer => 
+          transfer.mint !== SOL_ADDRESS
+        );
+        
+        if (!relevantTransfer) {
+          console.log('No relevant token transfer found in PumpFun transaction');
+          return new Response('No relevant token transfer.', { status: 200 });
         }
 
+        tokenToDisplay = relevantTransfer.mint;
+        amount = relevantTransfer.tokenAmount;
+        isBeingBought = determinePumpFunAction(event) === 'BUY';
+        
+        console.log('PumpFun transaction details:', {
+          tokenToDisplay,
+          amount,
+          isBeingBought,
+          action: determinePumpFunAction(event)
+        });
+      } else {
+        const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+        const result = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
         tokenToDisplay = result.tokenToDisplay;
         amount = result.amount;
         isBeingBought = result.isBeingBought;
       }
 
-      // Add validation before proceeding
-      if (!tokenToDisplay) {
-        console.log('No valid token to display, skipping message');
-        return new Response('No valid token to display.', { status: 200 });
-      }
-
       const tokenMetadata = await getTokenMetadata(tokenToDisplay);
       const { labeledDescription, clusterInfo, walletLabel } = replaceWalletWithLabelAndCluster(description, tokenToDisplay, tokenMetadata);
-
-      // Only proceed if we have a valid labeled description
-      if (!labeledDescription) {
-        console.log('No valid labeled description, skipping message');
-        return new Response('No valid description.', { status: 200 });
-      }
-
       const marketCap = await fetchMarketCap(tokenToDisplay);
 
       let messageToSend = 
@@ -211,15 +238,11 @@ async function handleRequest(request) {
         `MC: ${marketCap}\n\n` +
         `<code>${tokenToDisplay}</code>`;
 
-      // Add validation before sending
-      if (messageToSend.includes('null') || messageToSend.includes('undefined')) {
-        console.log('Invalid message content, skipping:', messageToSend);
-        return new Response('Invalid message content.', { status: 200 });
-      }
-
       console.log('About to send message to Telegram:', messageToSend);
       await sendToTelegram(messageToSend, tokenToDisplay);
       console.log('Sent initial message to Telegram');
+    } else {
+      console.log('Not a SWAP event, ignoring.');
     }
 
     return new Response('Processed POST request body.', { status: 200 });
@@ -229,25 +252,24 @@ async function handleRequest(request) {
 }
 
 function analyzeSwap(tokenTransfers) {
+  
   // Handle case where tokenTransfers might be undefined or empty
   if (!tokenTransfers || tokenTransfers.length < 2) {
-    console.log('Invalid token transfers:', tokenTransfers);
-    return null;
+    return {
+      tokenIn: null,
+      tokenOut: null,
+      amountIn: 0,
+      amountOut: 0
+    };
   }
 
   const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
   
-  // Add validation for mint addresses
-  if (!tokenInTransfer.mint || !tokenOutTransfer.mint) {
-    console.log('Missing mint addresses in transfers:', { tokenInTransfer, tokenOutTransfer });
-    return null;
-  }
-
   return {
     tokenIn: tokenInTransfer.mint,
     tokenOut: tokenOutTransfer.mint,
-    amountIn: tokenInTransfer.tokenAmount,
-    amountOut: tokenOutTransfer.tokenAmount
+    amountIn: tokenInTransfer.amount,
+    amountOut: tokenOutTransfer.amount
   };
 }
 
