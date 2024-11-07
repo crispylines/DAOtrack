@@ -226,7 +226,14 @@ async function handleRequest(request) {
         const result = getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut);
         tokenToDisplay = result.tokenToDisplay;
         amount = result.amount;
-        isBeingBought = isRaydiumRouted ? (event.tokenTransfers[1].mint === SOL_ADDRESS) : result.isBeingBought;
+        
+        // Fix for Raydium routed transactions
+        if (isRaydiumRouted) {
+          // If SOL is being sent out (tokenIn is SOL), it's a buy
+          isBeingBought = tokenIn === SOL_ADDRESS;
+        } else {
+          isBeingBought = result.isBeingBought;
+        }
       }
 
       const tokenMetadata = await getTokenMetadata(tokenToDisplay);
