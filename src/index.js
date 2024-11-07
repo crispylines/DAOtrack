@@ -243,50 +243,7 @@ async function handleRequest(request) {
       console.log('Sent initial message to Telegram');
 
       if (isBeingBought) {
-        const buyersKey = `buyers_${tokenToDisplay}`;
-        let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
-        console.log('Current buyers data:', buyersJson); // Debug log
-
-        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
-        console.log('Parsed buyers data:', buyersData); // Debug log
-
-        // Check if this is a new tracking session
-        const now = Date.now();
-        if (now - buyersData.firstBuyTime > 14400000) {
-          console.log('Resetting buyers data due to timeout'); // Debug log
-          buyersData = {
-            buyers: [],
-            firstBuyTime: now
-          };
-        }
-
-        if (!buyersData.buyers.includes(walletLabel)) {
-          console.log(`Adding new buyer ${walletLabel} to list`); // Debug log
-          buyersData.buyers.push(walletLabel);
-          await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
-          console.log(`Updated buyers list: ${buyersData.buyers.join(', ')}`); // Debug log
-
-          if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
-            console.log(`Triggering ${buyersData.buyers.length} buyers message`); // Debug log
-            const buyNumber = buyersData.buyers.length;
-            const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                                 `${buyNumber} Different Buyers Detected for\n\n` +
-                                 `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
-                                 `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
-                                 `MC: ${marketCap}\n\n` +
-                                 `<code>${tokenToDisplay}</code>`;
-
-            console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
-            await sendToTelegram(buyersMessage, tokenToDisplay);
-            console.log(`Sent ${buyNumber} buyers message to Telegram`);
-          }
-
-          // Clear tracking after 4th buyer
-          if (buyersData.buyers.length >= 4) {
-            await TOKEN_BUYS_2.delete(buyersKey);
-            console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
-          }
-        }
+        await trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, marketCap);
       }
     } else {
       console.log('Not a SWAP event, ignoring.');
@@ -295,6 +252,62 @@ async function handleRequest(request) {
     return new Response('Processed POST request body.', { status: 200 });
   } else {
     return new Response('Method not allowed.', { status: 405 });
+  }
+}
+
+// New function to handle buyer tracking and notifications
+async function trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, marketCap) {
+  const buyersKey = `buyers_${tokenToDisplay}`;
+  const now = Date.now();
+  
+  try {
+    let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
+    console.log('Retrieved buyers data:', buyersJson);
+    
+    let buyersData = JSON.parse(buyersJson || '{"buyers":[],"firstBuyTime":0}');
+    console.log('Parsed buyers data:', buyersData);
+
+    // Reset tracking if more than 4 hours have passed
+    if (now - buyersData.firstBuyTime > 14400000) {
+      console.log('Resetting tracking due to timeout');
+      buyersData = {
+        buyers: [],
+        firstBuyTime: now
+      };
+    }
+
+    // Set first buy time if this is the first buyer
+    if (buyersData.buyers.length === 0) {
+      buyersData.firstBuyTime = now;
+    }
+
+    // Add new buyer if not already tracked
+    if (!buyersData.buyers.includes(walletLabel)) {
+      buyersData.buyers.push(walletLabel);
+      await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
+      console.log(`Added buyer ${walletLabel}. Current buyers:`, buyersData.buyers);
+
+      // Send notification for 2-4 buyers
+      if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
+        const buyersMessage = `${('🧬').repeat(12)}\n\n` +
+                            `${buyersData.buyers.length} Different Buyers Detected for\n\n` +
+                            `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
+                            `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
+                            `MC: ${marketCap}\n\n` +
+                            `<code>${tokenToDisplay}</code>`;
+
+        await sendToTelegram(buyersMessage, tokenToDisplay);
+        console.log(`Sent ${buyersData.buyers.length} buyers notification`);
+      }
+
+      // Clear tracking after 4th buyer
+      if (buyersData.buyers.length >= 4) {
+        await TOKEN_BUYS_2.delete(buyersKey);
+        console.log(`Cleared tracking after 4th buyer for ${tokenToDisplay}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in trackBuyerAndNotify:', error);
   }
 }
 
