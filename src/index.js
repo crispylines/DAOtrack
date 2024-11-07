@@ -175,6 +175,18 @@ async function handleRequest(request) {
     });
 
     if (isSwap || isRaydiumDirect || isRaydiumRouted || isPumpFunTx) {
+      console.log('Processing transaction:', {
+        feePayer: event.feePayer,
+        type: {
+          isSwap,
+          isRaydiumDirect,
+          isRaydiumRouted,
+          isPumpFunTx
+        },
+        description: event.description,
+        tokenTransfers: event.tokenTransfers
+      });
+
       // Add duplicate transaction check
       if (PROCESSED_TXS.has(event.signature)) {
         console.log('Already processed this transaction, skipping');
@@ -253,6 +265,23 @@ async function handleRequest(request) {
       );
 
       const marketCap = await fetchMarketCap(tokenToDisplay);
+
+      // Add validation before sending message
+      if (!tokenToDisplay) {
+        console.error('No token address to display, skipping message');
+        return new Response('No token address to display', { status: 200 });
+      }
+
+      // Log the data right before creating the message
+      console.log('Pre-message data:', {
+        tokenToDisplay,
+        tokenMetadata,
+        walletLabel,
+        isBeingBought,
+        marketCap,
+        description: event.description,
+        labeledDescription
+      });
 
       let messageToSend = 
         `${isBeingBought ? (isPumpFunTx ? '💊🟢PF Buy' : '🟢🧪Buy') : (isPumpFunTx ? '💊🔴PF Sell' : '🔴🧪Sell')}\n` +
@@ -338,9 +367,8 @@ async function trackBuyerAndNotify(walletLabel, tokenToDisplay, tokenMetadata, m
 }
 
 function analyzeSwap(tokenTransfers) {
-  
-  // Handle case where tokenTransfers might be undefined or empty
-  if (!tokenTransfers || tokenTransfers.length < 2) {
+  if (!tokenTransfers || !Array.isArray(tokenTransfers) || tokenTransfers.length < 2) {
+    console.error('Invalid tokenTransfers:', tokenTransfers);
     return {
       tokenIn: null,
       tokenOut: null,
@@ -349,14 +377,34 @@ function analyzeSwap(tokenTransfers) {
     };
   }
 
-  const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
-  
-  return {
-    tokenIn: tokenInTransfer.mint,
-    tokenOut: tokenOutTransfer.mint,
-    amountIn: tokenInTransfer.amount,
-    amountOut: tokenOutTransfer.amount
-  };
+  try {
+    const [tokenInTransfer, tokenOutTransfer] = tokenTransfers;
+    
+    if (!tokenInTransfer?.mint || !tokenOutTransfer?.mint) {
+      console.error('Missing mint addresses in transfers:', { tokenInTransfer, tokenOutTransfer });
+      return {
+        tokenIn: null,
+        tokenOut: null,
+        amountIn: 0,
+        amountOut: 0
+      };
+    }
+
+    return {
+      tokenIn: tokenInTransfer.mint,
+      tokenOut: tokenOutTransfer.mint,
+      amountIn: tokenInTransfer.tokenAmount || 0,
+      amountOut: tokenOutTransfer.tokenAmount || 0
+    };
+  } catch (error) {
+    console.error('Error in analyzeSwap:', error);
+    return {
+      tokenIn: null,
+      tokenOut: null,
+      amountIn: 0,
+      amountOut: 0
+    };
+  }
 }
 
 function getTokenToDisplay(tokenIn, tokenOut, amountIn, amountOut) {
@@ -405,30 +453,45 @@ function replaceWalletWithLabelAndCluster(description, tokenAddress, tokenMetada
 }
 
 async function getTokenMetadata(tokenAddress) {
-  const response = await fetch(HELIUS_RPC_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 'my-id',
-      method: 'getAsset',
-      params: {
-        id: tokenAddress,
+  if (!tokenAddress) {
+    console.error('No token address provided to getTokenMetadata');
+    return { name: 'Unknown Token', symbol: 'UNKNOWN' };
+  }
+
+  try {
+    const response = await fetch(HELIUS_RPC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'my-id',
+        method: 'getAsset',
+        params: {
+          id: tokenAddress,
+        },
+      }),
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (data.result) {
+    if (data.error) {
+      console.error('Error from Helius API:', data.error);
+      return { name: 'Unknown Token', symbol: 'UNKNOWN' };
+    }
+
+    if (!data.result || !data.result.content || !data.result.content.metadata) {
+      console.error('Invalid metadata response structure:', data);
+      return { name: 'Unknown Token', symbol: 'UNKNOWN' };
+    }
+
     return {
       name: data.result.content.metadata.name || 'Unknown Token',
       symbol: data.result.content.metadata.symbol || 'UNKNOWN',
     };
-  } else {
-    console.error('Failed to fetch token metadata:', data);
+  } catch (error) {
+    console.error('Failed to fetch token metadata:', error);
     return { name: 'Unknown Token', symbol: 'UNKNOWN' };
   }
 }
