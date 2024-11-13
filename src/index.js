@@ -59,9 +59,10 @@ const WALLET_LABELS = {
  // '9XfAyd3Z2DkjyD6mbQQgEU8rxUk9EbxzHjJbJTZLhTm5': { label: '🥼#TESTINGLOG1', cluster: 'cluster5' },
  // 'HCM9p2FQfbzbhC1XZLXDC6dpogkEZ5fUV8uMDLma4tce': { label: '🥼#TESTINGLOG2', cluster: 'cluster5' },
   'GFJhtZuENEB9StZiacHUd1aoBoCtY2wWLskhgwcyfaYN': { label: '🥼#b16z', cluster: 'cluster5' },
+  '6r3WKowwoqYkG4P2zVvX1aNBrg8Da1NZpHT9QxQy9w57': { label: '🥼#earlyZuph', cluster: 'cluster5' },
 };
 //
-//
+//6r3WKowwoqYkG4P2zVvX1aNBrg8Da1NZpHT9QxQy9w57
 // Add the filtered wallets A8bzshzYKQU6SSttSi7cPdmA4zdPYRt5saxuK1PrTzEp, Gwv9NGzyQvUPYk7A5mhDXHVL88P39Eoz9omQ1SVgguMv, BYN8BfqXPef3YHUvmjfHyuVM6cHCLy72Y7TGrPt3h5mx
 const FILTERED_WALLETS = [
   'JD38n7ynKYcgPpF7k1BhXEeREu1KqptU93fVGy3S624k',
