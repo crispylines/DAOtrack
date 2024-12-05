@@ -1,4 +1,9 @@
 // Constants
+//-1002368630513 The Lab
+//-1002370104136 testing area
+//wrangler tail solana-tracker-worker //for logging
+//git push //npm run deploy
+
 const TELEGRAM_BOT_TOKEN = BOT_TOKEN;  // Your Telegram Bot Token
 const TELEGRAM_CHAT_ID = CHAT_ID;      // Your Telegram Chat ID
 const HELIUS_API_KEY = API_KEY;        // Your Helius API Key
@@ -7,21 +12,21 @@ const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY
 // Define wallet labels - simplified version
 const WALLET_LABELS = {
   'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': { label: '🥼#PAWG', cluster: 'cluster1' },
-  'AM84n1LcWWc6KrCXkJ5mfwPFW3RKZqHJHWqz3wKUvYEm': { label: '🥼#ai16z', cluster: 'cluster1' },
-  'CGUP4nA5VxqM8eRc4qVnhBHoF9v1diddycap': { label: '🥼#dapJones', cluster: 'cluster1' },
-  '4iYkwqgsdamp': { label: '🥼#diddycap', cluster: 'cluster1' },
-  '9Ji6GafFPlate': { label: '🥼#damp', cluster: 'cluster1' },
-  '6wTVWKQwAl': { label: '🥼#late', cluster: 'cluster1' },
-  'Ms5tLZVVkoto': { label: '🥼#wAl', cluster: 'cluster1' },
-  'gsbjNUwctnf': { label: '🥼#koto', cluster: 'cluster1' },
-  '988CrdL24mono': { label: '🥼#tnf', cluster: 'cluster1' },
-  '7zWD593VGFC': { label: '🥼#mono', cluster: 'cluster1' },
-  'FDyxm7AqDCG': { label: '🥼#GFC', cluster: 'cluster1' },
-  '59oBqs32Vmilady': { label: '🥼#DCG', cluster: 'cluster1' },
-  'CmCX9JfuiRetardio': { label: '🥼#milady', cluster: 'cluster1' },
-  'GpEUt7Xparadaigm': { label: '🥼#retardio', cluster: 'cluster1' },
-  '32hGMSB8girle': { label: '🥼#paradaigm', cluster: 'cluster1' },
-  'DmyYENoI': { label: '🥼#girle', cluster: 'cluster1' }
+//  'AM84n1LcWWc6KrCXkJ5mfwPFW3RKZqHJHWqz3wKUvYEm': { label: '🥼#ai16z', cluster: 'cluster1' },
+//  'CGUP4nA5VxqM8eRc4qVnhBHoF9v1diddycap': { label: '🥼#dapJones', cluster: 'cluster1' },
+//  '4iYkwqgsdamp': { label: '🥼#diddycap', cluster: 'cluster1' },
+//  '9Ji6GafFPlate': { label: '🥼#damp', cluster: 'cluster1' },
+//  '6wTVWKQwAl': { label: '🥼#late', cluster: 'cluster1' },
+//  'Ms5tLZVVkoto': { label: '🥼#wAl', cluster: 'cluster1' },
+//  'gsbjNUwctnf': { label: '🥼#koto', cluster: 'cluster1' },
+//  '988CrdL24mono': { label: '🥼#tnf', cluster: 'cluster1' },
+ // '7zWD593VGFC': { label: '🥼#mono', cluster: 'cluster1' },
+ // 'FDyxm7AqDCG': { label: '🥼#GFC', cluster: 'cluster1' },
+ // '59oBqs32Vmilady': { label: '🥼#DCG', cluster: 'cluster1' },
+ // 'CmCX9JfuiRetardio': { label: '🥼#milady', cluster: 'cluster1' },
+ // 'GpEUt7Xparadaigm': { label: '🥼#retardio', cluster: 'cluster1' },
+ // '32hGMSB8girle': { label: '🥼#paradaigm', cluster: 'cluster1' },
+ // 'DmyYENoI': { label: '🥼#girle', cluster: 'cluster1' }
 };
 
 // Add filtered wallets if needed
@@ -158,7 +163,10 @@ async function fetchMarketCap(tokenAddress) {
 async function handleRequest(request) {
   if (request.method === 'POST') {
     const requestBody = await request.json();
+    console.log('Received POST request with body:', JSON.stringify(requestBody, null, 2));
+
     const event = requestBody[0];
+    console.log('Event:', JSON.stringify(event, null, 2));
     
     // Check for both SWAP type and Raydium program IDs
     const isSwap = event?.type === 'SWAP';
@@ -169,17 +177,31 @@ async function handleRequest(request) {
       instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
     );
 
+    console.log('Transaction type checks:', { isSwap, isRaydiumDirect, isRaydiumRouted });
+
     if (isSwap || isRaydiumDirect || isRaydiumRouted) {
+      console.log('Detected swap transaction');
+      
       if (PROCESSED_TXS.has(event.signature)) {
+        console.log('Already processed this transaction, skipping');
         return new Response('Already processed.', { status: 200 });
       }
-      PROCESSED_TXS.add(event.signature);
-
+      
       const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(event.tokenTransfers);
-      const walletAddress = event.accountData.find(acc => WALLET_LABELS[acc.account])?.account;
+      console.log('Swap analysis:', { tokenIn, tokenOut, amountIn, amountOut });
+
+      const walletAddress = event.accountData.find(acc => 
+        Object.keys(WALLET_LABELS).some(label => 
+          label.toLowerCase() === acc.account?.toLowerCase()
+        )
+      )?.account;
+      console.log('Found wallet address:', walletAddress);
       
       if (walletAddress && WALLET_LABELS[walletAddress]) {
+        console.log('Wallet label found:', WALLET_LABELS[walletAddress].label);
         const isBuy = tokenIn.toLowerCase() === 'So11111111111111111111111111111111111111112'.toLowerCase();
+        console.log('Is buy transaction:', isBuy);
+        
         const message = await formatMessage(
           WALLET_LABELS[walletAddress].label,
           tokenIn,
@@ -190,7 +212,11 @@ async function handleRequest(request) {
         );
         
         await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
+      } else {
+        console.log('No matching wallet label found');
       }
+    } else {
+      console.log('Not a swap transaction');
     }
   }
   return new Response('OK', { status: 200 });

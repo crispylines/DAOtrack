@@ -9,7 +9,7 @@ API_KEY = "a2e2c76b-a4cf-4357-8d95-0939d7e851f8"    # Will be overridden by envi
 
 [[kv_namespaces]]
 binding = "TOKEN_BUYS_10"
-id = "62c7ea62522b4125aaadb0f008301fa1"
+id = "eede25f4efff4c6a90c3fb40ce69540b"
 
 [observability]
 enabled = true
