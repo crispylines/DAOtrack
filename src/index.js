@@ -41,14 +41,14 @@ addEventListener('fetch', event => {
 
 // Simplified version of analyzeSwap focusing on Jupiter swaps
 function analyzeSwap(tokenTransfers) {
-  if (!tokenTransfers || tokenTransfers.length === 0) return {};
+  if (!tokenTransfers || tokenTransfers.length < 2) return {};
   
-  const tokenIn = tokenTransfers[0]?.mint;
-  const tokenOut = tokenTransfers[1]?.mint;
-  const amountIn = tokenTransfers[0]?.tokenAmount;
-  const amountOut = tokenTransfers[1]?.tokenAmount;
-
-  return { tokenIn, tokenOut, amountIn, amountOut };
+  return {
+    tokenIn: tokenTransfers[0].mint,
+    tokenOut: tokenTransfers[1].mint,
+    amountIn: tokenTransfers[0].tokenAmount,
+    amountOut: tokenTransfers[1].tokenAmount
+  };
 }
 
 // Simplified message format
@@ -159,7 +159,7 @@ async function fetchMarketCap(tokenAddress) {
   }
 }
 
-// Update the handleRequest function to use the new message format
+// Update the handleRequest function to properly detect Jupiter swaps
 async function handleRequest(request) {
   if (request.method === 'POST') {
     const requestBody = await request.json();
@@ -168,46 +168,38 @@ async function handleRequest(request) {
     const event = requestBody[0];
     console.log('Event:', JSON.stringify(event, null, 2));
     
-    // Check for both SWAP type and Raydium program IDs
-    const isSwap = event?.type === 'SWAP';
-    const isRaydiumDirect = event?.instructions?.some(instruction => 
-      instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'
-    );
-    const isRaydiumRouted = event?.instructions?.some(instruction => 
-      instruction.programId === 'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS'
-    );
+    // Check for Jupiter swaps by looking at source and tokenTransfers
+    const isJupiterSwap = event?.source === 'JUPITER' && event?.tokenTransfers?.length >= 2;
+    const tokenTransfers = event?.tokenTransfers || [];
+    
+    console.log('Transaction type checks:', { 
+      isJupiterSwap,
+      tokenTransfers: tokenTransfers.length
+    });
 
-    console.log('Transaction type checks:', { isSwap, isRaydiumDirect, isRaydiumRouted });
-
-    if (isSwap || isRaydiumDirect || isRaydiumRouted) {
-      console.log('Detected swap transaction');
-      
-      if (PROCESSED_TXS.has(event.signature)) {
-        console.log('Already processed this transaction, skipping');
-        return new Response('Already processed.', { status: 200 });
-      }
-      
-      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(event.tokenTransfers);
-      console.log('Swap analysis:', { tokenIn, tokenOut, amountIn, amountOut });
-
+    if (isJupiterSwap) {
+      // Get wallet address from the transaction
       const walletAddress = event.accountData.find(acc => 
-        Object.keys(WALLET_LABELS).some(label => 
-          label.toLowerCase() === acc.account?.toLowerCase()
-        )
+        acc.nativeBalanceChange < 0 && 
+        !acc.account.includes('11111111') && 
+        acc.tokenBalanceChanges.length === 0
       )?.account;
-      console.log('Found wallet address:', walletAddress);
-      
+
+      console.log('Wallet address:', walletAddress);
+
       if (walletAddress && WALLET_LABELS[walletAddress]) {
-        console.log('Wallet label found:', WALLET_LABELS[walletAddress].label);
-        const isBuy = tokenIn.toLowerCase() === 'So11111111111111111111111111111111111111112'.toLowerCase();
-        console.log('Is buy transaction:', isBuy);
+        const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+        
+        // Determine if this is a buy (SOL -> Token) or sell (Token -> SOL)
+        const isBuy = tokenIn === 'So11111111111111111111111111111111111111112';
         
         const message = await formatMessage(
-          WALLET_LABELS[walletAddress].label,
+          WALLET_LABELS[walletAddress],
           tokenIn,
           tokenOut,
           amountIn,
           amountOut,
+          null,
           isBuy
         );
         
@@ -216,7 +208,7 @@ async function handleRequest(request) {
         console.log('No matching wallet label found');
       }
     } else {
-      console.log('Not a swap transaction');
+      console.log('Not a Jupiter swap');
     }
   }
   return new Response('OK', { status: 200 });
