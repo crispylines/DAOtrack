@@ -117,18 +117,28 @@ ${swapInfo.tokenOut}`;
 async function getTokenMetadata(connection, mint) {
   try {
     const response = await fetch(`https://public-api.solscan.io/token/meta?tokenAddress=${mint}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.json();
     return {
-      symbol: data.symbol || 'Unknown',
+      symbol: data.symbol || getSymbolFromMint(mint),
       name: data.name || 'Unknown Token'
     };
   } catch (error) {
     console.error('Error fetching token metadata:', error);
     return {
-      symbol: 'Unknown',
+      symbol: getSymbolFromMint(mint),
       name: 'Unknown Token'
     };
   }
+}
+
+function getSymbolFromMint(mint) {
+  if (mint === 'So11111111111111111111111111111111111111112') {
+    return 'SOL';
+  }
+  return 'Unknown';
 }
 
 async function fetchMarketCap(tokenAddress) {
@@ -173,7 +183,7 @@ async function handleRequest(request) {
 
     if (isJupiterSwap || isDaosFunSwap) {
       const { tokenTransfers } = event;
-      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+      const swapInfo = await analyzeSwap(tokenTransfers);
       
       // Find the wallet that initiated the swap
       const walletAddress = event.accountData.find(account => 
@@ -181,21 +191,18 @@ async function handleRequest(request) {
         account.account !== event.feePayer
       )?.account;
 
-      if (walletAddress && WALLET_LABELS[walletAddress]) {
+      if (walletAddress) {
         // Determine if this is a buy (SOL -> Token) or sell (Token -> SOL)
-        const isBuy = tokenIn === 'So11111111111111111111111111111111111111112';
+        const isBuy = swapInfo.tokenInSymbol === 'SOL';
         
-        const message = await formatMessage(
-          WALLET_LABELS[walletAddress],
-          tokenIn,
-          tokenOut,
-          amountIn,
-          amountOut,
-          null,
-          isBuy
-        );
+        const message = `🟢DAO BUY
+${swapInfo.tokenOutSymbol} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
+
+MC: Unknown
+
+${swapInfo.tokenOut}`;
         
-        await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
+        await sendToTelegram(message, isBuy ? swapInfo.tokenOut : swapInfo.tokenIn);
       } else {
         console.log('No matching wallet label found');
       }
