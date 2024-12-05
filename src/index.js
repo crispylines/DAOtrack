@@ -35,6 +35,9 @@ const FILTERED_WALLETS = [];
 // Add at the top with other constants
 const PROCESSED_TXS = new Set();
 
+// Add constant for DAOS_FUN program ID
+const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -168,28 +171,25 @@ async function handleRequest(request) {
     const event = requestBody[0];
     console.log('Event:', JSON.stringify(event, null, 2));
     
-    // Check for Jupiter swaps by looking at source and tokenTransfers
+    // Check for Jupiter or daos.fun swaps
     const isJupiterSwap = event?.source === 'JUPITER' && event?.tokenTransfers?.length >= 2;
-    const tokenTransfers = event?.tokenTransfers || [];
+    const isDaosFunSwap = event?.instructions?.some(ix => 
+      ix.programId === DAOS_FUN_PROGRAM_ID
+    ) && event?.tokenTransfers?.length >= 2;
     
-    console.log('Transaction type checks:', { 
-      isJupiterSwap,
-      tokenTransfers: tokenTransfers.length
-    });
+    console.log('Transaction type checks:', { isJupiterSwap, isDaosFunSwap, tokenTransfers: event?.tokenTransfers?.length });
 
-    if (isJupiterSwap) {
-      // Get wallet address from the transaction
-      const walletAddress = event.accountData.find(acc => 
-        acc.nativeBalanceChange < 0 && 
-        !acc.account.includes('11111111') && 
-        acc.tokenBalanceChanges.length === 0
+    if (isJupiterSwap || isDaosFunSwap) {
+      const { tokenTransfers } = event;
+      const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
+      
+      // Find the wallet that initiated the swap
+      const walletAddress = event.accountData.find(account => 
+        account.nativeBalanceChange < 0 && 
+        account.account !== event.feePayer
       )?.account;
 
-      console.log('Wallet address:', walletAddress);
-
       if (walletAddress && WALLET_LABELS[walletAddress]) {
-        const { tokenIn, tokenOut, amountIn, amountOut } = analyzeSwap(tokenTransfers);
-        
         // Determine if this is a buy (SOL -> Token) or sell (Token -> SOL)
         const isBuy = tokenIn === 'So11111111111111111111111111111111111111112';
         
@@ -208,7 +208,7 @@ async function handleRequest(request) {
         console.log('No matching wallet label found');
       }
     } else {
-      console.log('Not a Jupiter swap');
+      console.log('Not a Jupiter or daos.fun swap');
     }
   }
   return new Response('OK', { status: 200 });
