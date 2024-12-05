@@ -1,5 +1,5 @@
 {
-  "name": "solana-tracker-worker",
+  "name": "daotrack-worker",
   "version": "1.0.0",
   "main": "src/index.js",
   "scripts": {
