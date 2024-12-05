@@ -43,14 +43,27 @@ addEventListener('fetch', event => {
 });
 
 // Simplified version of analyzeSwap focusing on Jupiter swaps
-function analyzeSwap(tokenTransfers) {
+async function analyzeSwap(tokenTransfers) {
   if (!tokenTransfers || tokenTransfers.length < 2) return {};
   
+  const tokenIn = tokenTransfers[0];
+  const tokenOut = tokenTransfers[1];
+  
+  // Fetch metadata for both tokens
+  const [inMetadata, outMetadata] = await Promise.all([
+    getTokenMetadata(null, tokenIn.mint),
+    getTokenMetadata(null, tokenOut.mint)
+  ]);
+
   return {
-    tokenIn: tokenTransfers[0].mint,
-    tokenOut: tokenTransfers[1].mint,
-    amountIn: tokenTransfers[0].tokenAmount,
-    amountOut: tokenTransfers[1].tokenAmount
+    tokenIn: tokenIn.mint,
+    tokenOut: tokenOut.mint,
+    amountIn: tokenIn.tokenAmount,
+    amountOut: tokenOut.tokenAmount,
+    tokenInSymbol: inMetadata.symbol,
+    tokenOutSymbol: outMetadata.symbol,
+    tokenInName: inMetadata.name,
+    tokenOutName: outMetadata.name
   };
 }
 
@@ -92,50 +105,29 @@ async function sendToTelegram(message, tokenAddress) {
 }
 
 // Add this function to format the message
-async function formatMessage(walletLabel, tokenIn, tokenOut, amountIn, amountOut, tokenMetadata, isBuy) {
-  // Get market cap
-  const marketCap = await fetchMarketCap(isBuy ? tokenOut : tokenIn);
-  
-  // Get token metadata
-  const metadata = await getTokenMetadata(isBuy ? tokenOut : tokenIn);
-  const tokenName = metadata?.name || 'Unknown Token';
-  const tokenSymbol = metadata?.symbol?.toLowerCase() || 'unknown';
-  
-  // Format amounts
-  const solAmount = isBuy ? amountIn : amountOut;
-  const tokenAmount = isBuy ? amountOut : amountIn;
-  
-  // Determine token address for display
-  const tokenAddress = isBuy ? tokenOut : tokenIn;
-
-  return `
-${isBuy ? '🟢DAO BUY' : '🔴DAO SELL'}
-${walletLabel} swapped ${isBuy ? 
-  `${solAmount} SOL for ${tokenAmount} ${tokenName} (${tokenSymbol})` : 
-  `${tokenAmount} ${tokenName} (${tokenSymbol}) for ${solAmount} SOL`}
+async function formatMessage(swapInfo, marketCap) {
+  return `🟢DAO BUY
+${swapInfo.tokenOutSymbol} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
 
 MC: ${marketCap}
 
-${tokenAddress}`;
+${swapInfo.tokenOut}`;
 }
 
-async function getTokenMetadata(tokenAddress) {
+async function getTokenMetadata(connection, mint) {
   try {
-    const response = await fetch(`${HELIUS_RPC_URL}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'my-id',
-        method: 'getTokenMetadata',
-        params: [tokenAddress],
-      }),
-    });
+    const response = await fetch(`https://public-api.solscan.io/token/meta?tokenAddress=${mint}`);
     const data = await response.json();
-    return data.result;
+    return {
+      symbol: data.symbol || 'Unknown',
+      name: data.name || 'Unknown Token'
+    };
   } catch (error) {
     console.error('Error fetching token metadata:', error);
-    return null;
+    return {
+      symbol: 'Unknown',
+      name: 'Unknown Token'
+    };
   }
 }
 
