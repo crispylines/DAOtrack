@@ -155,49 +155,74 @@ async function handleRequest(request) {
       if (isBeingBought) {
         const buyersKey = `buyers_${tokenToDisplay}`;
         let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
-        let buyersData = JSON.parse(buyersJson || '{"buyers": [], "firstBuyTime": 0}');
+        let buyersData = JSON.parse(buyersJson || '{"buyers": {}, "firstBuyTime": 0}');
         
         // Check if this is a new tracking session or if the old one expired (4 hours = 14400000 ms)
         const now = Date.now();
         if (now - buyersData.firstBuyTime > 14400000) {
           // Reset if more than 4 hours passed
           buyersData = {
-            buyers: [],
+            buyers: {},
             firstBuyTime: now
           };
         }
 
         // If this is the first buy, set the time
-        if (buyersData.buyers.length === 0) {
+        if (Object.keys(buyersData.buyers).length === 0) {
           buyersData.firstBuyTime = now;
         }
 
         // Add new buyer if not already present
-        if (!buyersData.buyers.includes(walletLabel)) {
-          buyersData.buyers.push(walletLabel);
+        if (!buyersData.buyers[walletLabel]) {
+          buyersData.buyers[walletLabel] = { hasSold: false };
           await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
 
-          console.log(`Current buyers for ${tokenToDisplay}: ${buyersData.buyers.join(', ')}`);
-
           // Check for multiple buyers milestones (2, 3, or 4 buyers)
-          if (buyersData.buyers.length >= 2 && buyersData.buyers.length <= 4) {
-            const buyNumber = buyersData.buyers.length;
+          const buyerCount = Object.keys(buyersData.buyers).length;
+          if (buyerCount >= 2 && buyerCount <= 4) {
             const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                                 `${buyNumber} Different Buyers Detected for\n\n` +
+                                 `${buyerCount} Different Buyers Detected for\n\n` +
                                  `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
-                                 `Buyers:\n${buyersData.buyers.join('\n')}\n\n` +
+                                 `Buyers:\n${Object.entries(buyersData.buyers)
+                                   .map(([buyer, status]) => `${buyer}${status.hasSold ? ' (sold)' : ''}`)
+                                   .join('\n')}\n\n` +
                                  `MC: ${marketCap}\n\n` +
                                  `<code>${tokenToDisplay}</code>`;
             
-            console.log(`About to send ${buyNumber} buyers message to Telegram:`, buyersMessage);
             await sendToTelegram(buyersMessage, tokenToDisplay);
-            console.log(`Sent ${buyNumber} buyers message to Telegram`);
           }
 
           // Clear tracking after 4th buyer
-          if (buyersData.buyers.length >= 4) {
+          if (buyerCount >= 4) {
             await TOKEN_BUYS_2.delete(buyersKey);
-            console.log(`Reached 4 buyers, clearing tracking for ${tokenToDisplay}`);
+          }
+        }
+      } else {
+        // Handle sells
+        const buyersKey = `buyers_${tokenToDisplay}`;
+        let buyersJson = await TOKEN_BUYS_2.get(buyersKey);
+        if (buyersJson) {
+          let buyersData = JSON.parse(buyersJson);
+          
+          // If the seller is one of our tracked buyers, mark them as sold
+          if (buyersData.buyers[walletLabel]) {
+            buyersData.buyers[walletLabel].hasSold = true;
+            await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
+
+            // Optionally resend the multi-buy message with updated sold status
+            const buyerCount = Object.keys(buyersData.buyers).length;
+            if (buyerCount >= 2 && buyerCount <= 4) {
+              const buyersMessage = `${('🧬').repeat(12)}\n\n` +
+                                 `${buyerCount} Different Buyers Detected for\n\n` +
+                                 `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
+                                 `Buyers:\n${Object.entries(buyersData.buyers)
+                                   .map(([buyer, status]) => `${buyer}${status.hasSold ? ' (sold)' : ''}`)
+                                   .join('\n')}\n\n` +
+                                 `MC: ${marketCap}\n\n` +
+                                 `<code>${tokenToDisplay}</code>`;
+              
+              await sendToTelegram(buyersMessage, tokenToDisplay);
+            }
           }
         }
       }
