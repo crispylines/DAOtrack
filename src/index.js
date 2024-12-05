@@ -11,7 +11,7 @@ const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY
 
 // Define wallet labels - simplified version
 const WALLET_LABELS = {
-  'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': { label: '🥼#PAWG', cluster: 'cluster1' },
+  'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': { label: '🥼#ai16z', cluster: 'cluster1' },
 //  'AM84n1LcWWc6KrCXkJ5mfwPFW3RKZqHJHWqz3wKUvYEm': { label: '🥼#ai16z', cluster: 'cluster1' },
 //  'CGUP4nA5VxqM8eRc4qVnhBHoF9v1diddycap': { label: '🥼#dapJones', cluster: 'cluster1' },
 //  '4iYkwqgsdamp': { label: '🥼#diddycap', cluster: 'cluster1' },
@@ -37,6 +37,8 @@ const PROCESSED_TXS = new Set();
 
 // Add constant for DAOS_FUN program ID
 const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
+
+import { KNOWN_TOKENS } from './tokenList';
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
@@ -114,22 +116,25 @@ MC: ${marketCap}
 ${swapInfo.tokenOut}`;
 }
 
-async function getTokenMetadata(connection, mint) {
+async function getTokenMetadata(mintAddress) {
   try {
-    const response = await fetch(`https://public-api.solscan.io/token/meta?tokenAddress=${mint}`);
+    const response = await fetch(`https://token-metadata.solana-labs.com/v1/token/${mintAddress}`);
     if (!response.ok) {
+      if (KNOWN_TOKENS[mintAddress]) {
+        return KNOWN_TOKENS[mintAddress];
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const data = await response.json();
-    return {
-      symbol: data.symbol || getSymbolFromMint(mint),
-      name: data.name || 'Unknown Token'
-    };
+    return await response.json();
   } catch (error) {
-    console.error('Error fetching token metadata:', error);
+    console.error("Error fetching token metadata:", error);
+    if (KNOWN_TOKENS[mintAddress]) {
+      return KNOWN_TOKENS[mintAddress];
+    }
     return {
-      symbol: getSymbolFromMint(mint),
-      name: 'Unknown Token'
+      name: "Unknown Token",
+      symbol: "Unknown",
+      logoURI: null
     };
   }
 }
