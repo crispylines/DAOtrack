@@ -144,7 +144,7 @@ async function handleRequest(request) {
 
       //let messageToSend = `🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪\n\n` +
       let messageToSend = 
-                          `${isBeingBought ? '🟢🧪Buy' : '🔴🧪Sell'}\n` +
+                          `${isBeingBought ? '🟢🧪Buy TESTING' : '🔴🧪Sell TESTING'}\n` +
                           `${labeledDescription}\n\n` +
                           `MC: ${marketCap}\n\n` +
                           `<code>${tokenToDisplay}</code>`;
@@ -182,7 +182,7 @@ async function handleRequest(request) {
           const buyerCount = Object.keys(buyersData.buyers).length;
           if (buyerCount >= 2 && buyerCount <= 4) {
             const buyersMessage = `${('🧬').repeat(12)}\n\n` +
-                                 `${buyerCount} Different Buyers Detected for\n\n` +
+                                 `${buyerCount} Different Buyers Detected for TESTING\n\n` +
                                  `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
                                  `Buyers:\n${Object.entries(buyersData.buyers)
                                    .map(([buyer, status]) => `${buyer}${status.hasSold ? ' (sold)' : ''}`)
