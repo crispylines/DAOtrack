@@ -11,22 +11,8 @@ const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY
 
 // Define wallet labels - simplified version
 const WALLET_LABELS = {
-  'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': { label: '🥼#ai16z', cluster: 'cluster1' },
-//  'AM84n1LcWWc6KrCXkJ5mfwPFW3RKZqHJHWqz3wKUvYEm': { label: '🥼#ai16z', cluster: 'cluster1' },
-//  'CGUP4nA5VxqM8eRc4qVnhBHoF9v1diddycap': { label: '🥼#dapJones', cluster: 'cluster1' },
-//  '4iYkwqgsdamp': { label: '🥼#diddycap', cluster: 'cluster1' },
-//  '9Ji6GafFPlate': { label: '🥼#damp', cluster: 'cluster1' },
-//  '6wTVWKQwAl': { label: '🥼#late', cluster: 'cluster1' },
-//  'Ms5tLZVVkoto': { label: '🥼#wAl', cluster: 'cluster1' },
-//  'gsbjNUwctnf': { label: '🥼#koto', cluster: 'cluster1' },
-//  '988CrdL24mono': { label: '🥼#tnf', cluster: 'cluster1' },
- // '7zWD593VGFC': { label: '🥼#mono', cluster: 'cluster1' },
- // 'FDyxm7AqDCG': { label: '🥼#GFC', cluster: 'cluster1' },
- // '59oBqs32Vmilady': { label: '🥼#DCG', cluster: 'cluster1' },
- // 'CmCX9JfuiRetardio': { label: '🥼#milady', cluster: 'cluster1' },
- // 'GpEUt7Xparadaigm': { label: '🥼#retardio', cluster: 'cluster1' },
- // '32hGMSB8girle': { label: '🥼#paradaigm', cluster: 'cluster1' },
- // 'DmyYENoI': { label: '🥼#girle', cluster: 'cluster1' }
+  'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': '🥼#PAWG',
+  // Add other wallet labels as needed
 };
 
 // Add filtered wallets if needed
@@ -39,6 +25,8 @@ const PROCESSED_TXS = new Set();
 const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
 
 import { KNOWN_TOKENS } from './tokenList';
+
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
