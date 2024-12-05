@@ -1,7 +1,8 @@
 //CURRENT
 //-1002368630513 The Lab
 //-1002370104136 testing area
-//wrangler tail solana-tracker-worker
+//wrangler tail solana-tracker-worker //for logging
+//git push //npm run deploy
 
 const TELEGRAM_BOT_TOKEN = BOT_TOKEN;  // Your Telegram Bot Token
 const TELEGRAM_CHAT_ID = CHAT_ID;      // Your Telegram Chat ID
