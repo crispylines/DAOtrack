@@ -175,7 +175,10 @@ async function handleRequest(request) {
 
         // Add new buyer if not already present
         if (!buyersData.buyers[walletLabel]) {
-          buyersData.buyers[walletLabel] = { hasSold: false };
+          buyersData.buyers[walletLabel] = { 
+            amounts: [buyAmount], // Add the first buy amount
+            hasSold: false 
+          };
           await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
 
           // Check for multiple buyers milestones (2, 3, or 4 buyers)
@@ -185,7 +188,12 @@ async function handleRequest(request) {
                                  `${buyerCount} Different Buyers Detected for TESTING\n\n` +
                                  `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
                                  `Buyers:\n${Object.entries(buyersData.buyers)
-                                   .map(([buyer, status]) => `${buyer}${status.hasSold ? ' (sold)' : ''}`)
+                                   .map(([buyer, data]) => {
+                                     const amountsText = data.amounts
+                                       .map(amount => `${amount} sol`)
+                                       .join(', ');
+                                     return `${buyer}${data.hasSold ? ' (sold)' : ` ${amountsText}`}`;
+                                   })
                                    .join('\n')}\n\n` +
                                  `MC: ${marketCap}\n\n` +
                                  `<code>${tokenToDisplay}</code>`;
@@ -196,6 +204,30 @@ async function handleRequest(request) {
           // Clear tracking after 4th buyer
           if (buyerCount >= 4) {
             await TOKEN_BUYS_2.delete(buyersKey);
+          }
+        } else {
+          // If wallet exists, add new amount to their amounts array
+          buyersData.buyers[walletLabel].amounts.push(buyAmount);
+          await TOKEN_BUYS_2.put(buyersKey, JSON.stringify(buyersData));
+
+          // Optionally resend the multi-buy message with updated sold status
+          const buyerCount = Object.keys(buyersData.buyers).length;
+          if (buyerCount >= 2 && buyerCount <= 4) {
+            const buyersMessage = `${('🧬').repeat(12)}\n\n` +
+                                 `${buyerCount} Different Buyers Detected for\n\n` +
+                                 `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
+                                 `Buyers:\n${Object.entries(buyersData.buyers)
+                                   .map(([buyer, data]) => {
+                                     const amountsText = data.amounts
+                                       .map(amount => `${amount} sol`)
+                                       .join(', ');
+                                     return `${buyer}${data.hasSold ? ' (sold)' : ` ${amountsText}`}`;
+                                   })
+                                   .join('\n')}\n\n` +
+                                 `MC: ${marketCap}\n\n` +
+                                 `<code>${tokenToDisplay}</code>`;
+              
+            await sendToTelegram(buyersMessage, tokenToDisplay);
           }
         }
       } else {
@@ -217,7 +249,12 @@ async function handleRequest(request) {
                                  `${buyerCount} Different Buyers Detected for\n\n` +
                                  `${tokenMetadata.name} (${tokenMetadata.symbol})\n\n` +
                                  `Buyers:\n${Object.entries(buyersData.buyers)
-                                   .map(([buyer, status]) => `${buyer}${status.hasSold ? ' (sold)' : ''}`)
+                                   .map(([buyer, data]) => {
+                                     const amountsText = data.amounts
+                                       .map(amount => `${amount} sol`)
+                                       .join(', ');
+                                     return `${buyer}${data.hasSold ? ' (sold)' : ` ${amountsText}`}`;
+                                   })
                                    .join('\n')}\n\n` +
                                  `MC: ${marketCap}\n\n` +
                                  `<code>${tokenToDisplay}</code>`;
@@ -394,4 +431,22 @@ async function sendToTelegram(message, tokenAddress) {
   if (!response.ok) {
     console.error('Failed to send message to Telegram:', responseData);
   }
+}
+
+function calculateBuyAmount(event) {
+  // For a typical swap transaction
+  const preBalances = event.nativeBalances?.preTokenBalances || [];
+  const postBalances = event.nativeBalances?.postTokenBalances || [];
+  
+  // Calculate the difference in SOL
+  const solDifference = preBalances.reduce((acc, pre) => {
+    const post = postBalances.find(p => p.accountIndex === pre.accountIndex);
+    if (pre && post) {
+      const diff = Math.abs((pre.uiTokenAmount.uiAmount || 0) - (post.uiTokenAmount.uiAmount || 0));
+      return acc + diff;
+    }
+    return acc;
+  }, 0);
+
+  return solDifference.toFixed(2); // Return with 2 decimal places
 }
