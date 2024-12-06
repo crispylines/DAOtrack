@@ -285,10 +285,10 @@ async function handleRequest(request) {
       const { tokenTransfers } = event;
       const swapInfo = await analyzeSwap(tokenTransfers);
       
-      // Find the wallet that initiated the swap
+      // Find the wallet that initiated the swap - look for the account with negative SOL balance change
       const walletAddress = event.accountData.find(account => 
-        account.nativeBalanceChange < 0 && 
-        account.account !== event.feePayer
+        account.nativeBalanceChange < -5000 && // Changed from just negative to -5000 to exclude fee payer
+        !account.tokenBalanceChanges.some(change => change.mint === SOL_MINT) // Exclude wrapped SOL accounts
       )?.account;
 
       if (walletAddress) {
@@ -296,7 +296,7 @@ async function handleRequest(request) {
         const isBuy = swapInfo.tokenInSymbol === 'SOL';
         
         const message = `🟢DAO BUY
-${walletAddress ? WALLET_LABELS[walletAddress] : 'Unknown'} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
+${WALLET_LABELS[walletAddress] || 'Unknown'} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
 
 MC: ${swapInfo.marketCap || 'Unknown'}
 
