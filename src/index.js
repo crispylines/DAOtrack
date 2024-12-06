@@ -28,6 +28,15 @@ import { KNOWN_TOKENS } from './tokenList';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
+// Add these constants at the top with the other constants
+const HARDCODED_TOKENS = {
+  'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC': {
+    symbol: 'ai16z',
+    name: 'ai16z',
+    marketCap: '543.2m'
+  }
+};
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -105,6 +114,11 @@ ${swapInfo.tokenOut}`;
 }
 
 async function getTokenMetadata(mintAddress) {
+  // Check hardcoded tokens first
+  if (HARDCODED_TOKENS[mintAddress]) {
+    return HARDCODED_TOKENS[mintAddress];
+  }
+  
   try {
     const response = await fetch(`https://token-metadata.solana-labs.com/v1/token/${mintAddress}`);
     if (!response.ok) {
