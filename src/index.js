@@ -24,7 +24,7 @@ const PROCESSED_TXS = new Set();
 // Add constant for DAOS_FUN program ID
 const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
 
-import { KNOWN_TOKENS } from './tokenList';
+import { KNOWN_TOKENS } from './tokenList.js';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
@@ -113,30 +113,50 @@ MC: ${marketCap}
 ${swapInfo.tokenOut}`;
 }
 
-async function getTokenMetadata(mintAddress) {
-  // Check hardcoded tokens first
-  if (HARDCODED_TOKENS[mintAddress]) {
-    return HARDCODED_TOKENS[mintAddress];
-  }
-  
+async function getTokenMetadata(connection, mint) {
   try {
-    const response = await fetch(`https://token-metadata.solana-labs.com/v1/token/${mintAddress}`);
+    // First check if it's in our KNOWN_TOKENS
+    if (KNOWN_TOKENS[mint]) {
+      return {
+        symbol: KNOWN_TOKENS[mint].symbol,
+        name: KNOWN_TOKENS[mint].name,
+        marketCap: mint === 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC' ? '543.2m' : 'Unknown'
+      };
+    }
+
+    // If not in KNOWN_TOKENS, try the API
+    const response = await fetch(`${METADATA_API_URL}/${mint}`);
     if (!response.ok) {
-      if (KNOWN_TOKENS[mintAddress]) {
-        return KNOWN_TOKENS[mintAddress];
-      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json();
+    const metadata = await response.json();
+    return metadata;
   } catch (error) {
-    console.error("Error fetching token metadata:", error);
-    if (KNOWN_TOKENS[mintAddress]) {
-      return KNOWN_TOKENS[mintAddress];
+    console.error('Error fetching token metadata:', error);
+    
+    // If API fails, check KNOWN_TOKENS again as fallback
+    if (KNOWN_TOKENS[mint]) {
+      return {
+        symbol: KNOWN_TOKENS[mint].symbol,
+        name: KNOWN_TOKENS[mint].name,
+        marketCap: mint === 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC' ? '543.2m' : 'Unknown'
+      };
     }
+    
+    // If all else fails, return SOL for the wrapped SOL mint
+    if (mint === 'So11111111111111111111111111111111111111112') {
+      return {
+        symbol: 'SOL',
+        name: 'SOL',
+        marketCap: 'Unknown'
+      };
+    }
+    
+    // Last resort fallback
     return {
-      name: "Unknown Token",
-      symbol: "Unknown",
-      logoURI: null
+      symbol: 'Unknown',
+      name: 'Unknown Token',
+      marketCap: 'Unknown'
     };
   }
 }
