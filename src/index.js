@@ -37,6 +37,9 @@ const HARDCODED_TOKENS = {
   }
 };
 
+// Add this constant at the top with other constants
+const METADATA_API_URL = "https://token-metadata.solana-labs.vercel.app/api/metadata";
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
@@ -223,9 +226,9 @@ async function handleRequest(request) {
         const isBuy = swapInfo.tokenInSymbol === 'SOL';
         
         const message = `🟢DAO BUY
-${swapInfo.tokenOutSymbol} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
+${walletAddress ? WALLET_LABELS[walletAddress] : 'Unknown'} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
 
-MC: Unknown
+MC: ${swapInfo.marketCap || 'Unknown'}
 
 ${swapInfo.tokenOut}`;
         
