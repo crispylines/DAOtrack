@@ -81,7 +81,7 @@ const HARDCODED_TOKENS = {
     symbol: 'inf',
     name: 'Inferno'
   },
-  'EqYnLejJgWwzWsKYPg1yJxKzTAGvG7XRpxkX6kLLgJjw': {
+  'EqYnLeJgWUZ7U4C4uF481eAe2PkcyoqxDVFEMYL282Ux': {
     symbol: 'mono',
     name: 'Monopoly'
   },
@@ -109,6 +109,22 @@ const HARDCODED_TOKENS = {
 
 // Add this constant at the top with other constants
 const METADATA_API_URL = "https://token-metadata.solana-labs.vercel.app/api/metadata";
+
+// Update KNOWN_TOKENS to include the Degen Spartan AI token
+const KNOWN_TOKENS = {
+  'So11111111111111111111111111111111111111112': {
+    symbol: 'SOL',
+    name: 'SOL'
+  },
+  'Gu3LDkn7Vx3bmCzLafYNKcDxv2mH7YN44NJZFXnypump': {
+    symbol: 'degenai',
+    name: 'Degen Spartan AI'
+  }
+  // ... other known tokens ...
+};
+
+// Add Jupiter API endpoint
+const JUPITER_API_URL = "https://token.jup.ag/all";
 
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
@@ -188,44 +204,50 @@ ${swapInfo.tokenOut}`;
 
 async function getTokenMetadata(connection, mint) {
   try {
-    // First check if it's in our KNOWN_TOKENS
+    // First check KNOWN_TOKENS for daos.fun tokens
     if (KNOWN_TOKENS[mint]) {
       return {
         symbol: KNOWN_TOKENS[mint].symbol,
         name: KNOWN_TOKENS[mint].name,
-        marketCap: mint === 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC' ? '543.2m' : 'Unknown'
+        marketCap: 'Unknown'
       };
     }
 
-    // If not in KNOWN_TOKENS, try the API
-    const response = await fetch(`${METADATA_API_URL}/${mint}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // For other tokens, try Jupiter API first
+    const response = await fetch(JUPITER_API_URL);
+    if (response.ok) {
+      const tokens = await response.json();
+      const tokenInfo = tokens.find(t => t.address === mint);
+      if (tokenInfo) {
+        return {
+          symbol: tokenInfo.symbol.toLowerCase(),
+          name: tokenInfo.name,
+          marketCap: 'Unknown'
+        };
+      }
     }
-    const metadata = await response.json();
-    return metadata;
-  } catch (error) {
-    console.error('Error fetching token metadata:', error);
-    
-    // If API fails, check KNOWN_TOKENS again as fallback
-    if (KNOWN_TOKENS[mint]) {
-      return {
-        symbol: KNOWN_TOKENS[mint].symbol,
-        name: KNOWN_TOKENS[mint].name,
-        marketCap: mint === 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC' ? '543.2m' : 'Unknown'
-      };
+
+    // If Jupiter API fails, try Solana token metadata API as fallback
+    const metadataResponse = await fetch(`${METADATA_API_URL}/${mint}`);
+    if (metadataResponse.ok) {
+      const metadata = await metadataResponse.json();
+      return metadata;
     }
-    
-    // If all else fails, return SOL for the wrapped SOL mint
-    if (mint === 'So11111111111111111111111111111111111111112') {
+
+    // Last resort fallback for SOL
+    if (mint === SOL_MINT) {
       return {
         symbol: 'SOL',
         name: 'SOL',
         marketCap: 'Unknown'
       };
     }
+
+    throw new Error('Token metadata not found');
+  } catch (error) {
+    console.error('Error fetching token metadata:', error);
     
-    // Last resort fallback
+    // Default fallback
     return {
       symbol: 'Unknown',
       name: 'Unknown Token',
