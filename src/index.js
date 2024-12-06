@@ -110,19 +110,6 @@ const HARDCODED_TOKENS = {
 // Add this constant at the top with other constants
 const METADATA_API_URL = "https://token-metadata.solana-labs.vercel.app/api/metadata";
 
-// Update KNOWN_TOKENS to include the Degen Spartan AI token
-const KNOWN_TOKENS = {
-  'So11111111111111111111111111111111111111112': {
-    symbol: 'SOL',
-    name: 'SOL'
-  },
-  'Gu3LDkn7Vx3bmCzLafYNKcDxv2mH7YN44NJZFXnypump': {
-    symbol: 'degenai',
-    name: 'Degen Spartan AI'
-  }
-  // ... other known tokens ...
-};
-
 // Add Jupiter API endpoint
 const JUPITER_API_URL = "https://token.jup.ag/all";
 

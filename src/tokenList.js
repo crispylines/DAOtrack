@@ -1,4 +1,9 @@
 export const KNOWN_TOKENS = {
+  "So11111111111111111111111111111111111111112": {
+    name: "SOL",
+    symbol: "SOL",
+    logoURI: null
+  },
   "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC": {
     name: "ai16z",
     symbol: "ai16z",
