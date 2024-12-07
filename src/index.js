@@ -3,99 +3,281 @@
 //-1002370104136 testing area
 //wrangler tail solana-tracker-worker //for logging
 //git push //npm run deploy
+// Constants
+const TELEGRAM_BOT_TOKEN = BOT_TOKEN; // Your Telegram Bot Token
+const TELEGRAM_CHAT_ID = CHAT_ID; // Your Telegram Chat ID
+const HELIUS_API_KEY = API_KEY; // Your Helius API Key
+const HELIUS_RPC_URL = `https://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
 
-const TELEGRAM_BOT_TOKEN = BOT_TOKEN;  // Your Telegram Bot Token
-const TELEGRAM_CHAT_ID = CHAT_ID;      // Your Telegram Chat ID
-const HELIUS_API_KEY = API_KEY;        // Your Helius API Key
-const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+// Wallet Labels (Simplified and in tokenList.js)
+import { WALLET_LABELS, KNOWN_TOKENS } from './tokenList.js';
 
-// Define wallet labels - simplified version
-const WALLET_LABELS = {
-  'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': '#PAWG',
-  'AM84n1iLdxgVTAyENBcLdjXoyvjentTbu5Q6EpKV1PeG': '#ai16z',
-  'ChUZjgoZoZ86WucToFmnjA3UuQYpd43sygf9CvUtNsct': '#daojones',
-  '9qNCRKR7H3W3jy4vftdBQpVvVX72unpKBkSU1NUMTapm': '#diddycap',
-  'FXATxe498EMgqvvLgr63xB2A5FtASwkRjGpH9CYWRnEf': '#damp',
-  'CEqWovPj5PD3tGPanjQr9AUJc3nzxgGVrcnNPtwdenmX': '#late',
-  'Ms5tLL7VWCesMhw3NAUToUJ7Tic94WZoSZYKq1vu8u1': '#wAI',
-  'gsbJNUwQUYdCsRrmkKkkpJBYefKdwDp9rsLCZHJ1gMC': '#koto',
-  '988CrdL24ksML1edp3JHPf7A3WGMk38V5Uc2qR8F5NXv': '#inf',
-  '7zWD593WjQnZsJsTN7txgWioDShp1vhmpeKzegsuYzfj': '#mono',
-  'FDyxm7Aq6cmXQX8oKmJcySUVguGtSddceZnJyriw7qVc': '#GFC',
-  '59oBqs32Wysz52AMHAnxm3VBo1Gehs42s6m2rAY2To3o': '#DCG',
-  'CmCX9JfuKMoTe8w4utoACM3XnPuqRCVozyfpx4DLwjkb': '#milady',
-  'GrgCuU7X1hrTsxCcNffpkBZ7Tt2JJtyLkQfB2AyP5pXK': '#retardio',
-  '32hGMSB9KcSU87ww6zGWeWbtnxP8vZYW5bZeykrje9vS': '#paradigm',
-  'A6gM9zTVdN6CLqTdg68HpU9oZ8QmTYvt8onQZxUBHBre': '#girle'
-  // Add other wallet labels as needed
-};
+// Helius Webhook URL
+const HELIUS_WEBHOOK_URL = `https://api.helius.xyz/v0/webhooks?api-key=${HELIUS_API_KEY}`;
 
-// Add filtered wallets if needed
-const FILTERED_WALLETS = [];
-
-// Add at the top with other constants
-const PROCESSED_TXS = new Set();
-
-// Add constant for DAOS_FUN program ID
+// Program ID for daos.fun
 const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
 
-import { KNOWN_TOKENS } from './tokenList.js';
+// DEX Screener API for market cap
+const DEX_SCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens/';
 
+// Constants for token metadata
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
-
-// Add this constant at the top with other constants
-const METADATA_API_URL = "https://token-metadata.solana-labs.vercel.app/api/metadata";
-
-// Add Jupiter API endpoint
-const JUPITER_API_URL = "https://token.jup.ag/all";
-
-addEventListener('fetch', event => {
+addEventListener('fetch', (event) => {
   event.respondWith(handleRequest(event.request));
 });
 
-// Simplified version of analyzeSwap focusing on Jupiter swaps
-async function analyzeSwap(tokenTransfers) {
-  if (!tokenTransfers || tokenTransfers.length < 2) return {};
-  
-  const tokenIn = tokenTransfers[0];
-  const tokenOut = tokenTransfers[1];
-  
-  // Fetch metadata for both tokens
-  const [inMetadata, outMetadata] = await Promise.all([
-    getTokenMetadata(null, tokenIn.mint),
-    getTokenMetadata(null, tokenOut.mint)
-  ]);
+async function handleRequest(request) {
+  if (request.method === 'POST') {
+    try {
+      const transactions = await request.json();
+      console.log(
+        'Received POST request with body:',
+        JSON.stringify(transactions, null, 2),
+      );
 
-  return {
-    tokenIn: tokenIn.mint,
-    tokenOut: tokenOut.mint,
-    amountIn: tokenIn.tokenAmount,
-    amountOut: tokenOut.tokenAmount,
-    tokenInSymbol: inMetadata.symbol,
-    tokenOutSymbol: outMetadata.symbol,
-    tokenInName: inMetadata.name,
-    tokenOutName: outMetadata.name
-  };
+      for (const transaction of transactions) {
+        await processTransaction(transaction);
+      }
+    } catch (error) {
+      console.error('Error processing request:', error);
+      return new Response('Error processing request', { status: 500 });
+    }
+  } else if (request.method === 'GET') {
+    // Handle GET requests (e.g., for webhook setup/verification)
+    return setupWebhook();
+  }
+
+  return new Response('OK', { status: 200 });
 }
 
-// Simplified message format
+async function processTransaction(transaction) {
+  try {
+    const { accountData, signature } = transaction;
+
+    // Check if the transaction involves any of the tracked wallets
+    const involvedWallet = accountData.find((account) =>
+      WALLET_LABELS.hasOwnProperty(account.account),
+    );
+    if (!involvedWallet) {
+      console.log(
+        `Transaction ${signature} does not involve tracked wallets.`,
+      );
+      return;
+    }
+
+    const walletAddress = involvedWallet.account;
+
+    // Analyze the transaction for relevant actions (buy/sell)
+    const analysisResult = await analyzeTransaction(
+      transaction,
+      walletAddress,
+    );
+    if (!analysisResult) {
+      console.log(`Transaction ${signature} is not a relevant buy/sell.`);
+      return;
+    }
+
+    const { isBuy, tokenIn, tokenOut, amountIn, amountOut } = analysisResult;
+
+    // Get token metadata
+    const tokenInMetadata = await getTokenMetadata(tokenIn);
+    const tokenOutMetadata = await getTokenMetadata(tokenOut);
+
+    // Fetch market cap (only for the bought/sold token)
+    const marketCap = await fetchMarketCap(isBuy ? tokenOut : tokenIn);
+
+    // Construct the message
+    const message = formatMessage({
+      isBuy,
+      walletLabel: WALLET_LABELS[walletAddress],
+      tokenInSymbol: tokenInMetadata.symbol,
+      tokenOutSymbol: tokenOutMetadata.symbol,
+      amountIn,
+      amountOut,
+      tokenInName: tokenInMetadata.name,
+      tokenOutName: tokenOutMetadata.name,
+      marketCap,
+      tokenAddress: isBuy ? tokenOut : tokenIn,
+    });
+
+    // Send the message to Telegram
+    await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
+  } catch (error) {
+    console.error('Error processing transaction:', error);
+  }
+}
+
+async function analyzeTransaction(transaction, walletAddress) {
+  const { accountData, instructions, tokenTransfers, signature } = transaction;
+
+  // Check for daos.fun program interaction
+  const isDaosFunInteraction = instructions.some(
+    (ix) => ix.programId === DAOS_FUN_PROGRAM_ID,
+  );
+
+  // Check for relevant token transfers (at least 2 for a swap)
+  if (tokenTransfers.length < 2) {
+    return null;
+  }
+
+  let isBuy = false;
+  let tokenIn = '';
+  let tokenOut = '';
+  let amountIn = 0;
+  let amountOut = 0;
+
+  // Logic for identifying buy/sell in daos.fun interactions
+  if (isDaosFunInteraction) {
+    for (const transfer of tokenTransfers) {
+      if (
+        KNOWN_TOKENS.hasOwnProperty(transfer.mint) &&
+        transfer.fromUserAccount === walletAddress &&
+        transfer.tokenAmount > 0
+      ) {
+        // This is a sell of a tracked token
+        isBuy = false;
+        tokenIn = transfer.mint;
+        amountIn = transfer.tokenAmount;
+        // Find the corresponding buy (assuming SOL or another base token)
+        const buyTransfer = tokenTransfers.find(
+          (t) => t.toUserAccount === walletAddress && t.mint !== tokenIn,
+        );
+        if (buyTransfer) {
+          tokenOut = buyTransfer.mint;
+          amountOut = buyTransfer.tokenAmount;
+        }
+        break;
+      } else if (
+        transfer.toUserAccount === walletAddress &&
+        transfer.tokenAmount > 0
+      ) {
+        // Potential buy
+        isBuy = true;
+        tokenOut = transfer.mint;
+        amountOut = transfer.tokenAmount;
+        // Find the corresponding sell (assuming SOL or another base token)
+        const sellTransfer = tokenTransfers.find(
+          (t) =>
+            t.fromUserAccount === walletAddress &&
+            t.mint !== tokenOut &&
+            (t.mint === SOL_MINT || KNOWN_TOKENS.hasOwnProperty(t.mint)),
+        );
+        if (sellTransfer) {
+          tokenIn = sellTransfer.mint;
+          amountIn = sellTransfer.tokenAmount;
+        }
+      }
+    }
+  } else {
+    // Handle other types of swaps/transfers if needed in the future
+    return null;
+  }
+
+  if (tokenIn && tokenOut) {
+    return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
+  } else {
+    console.log(
+      `Could not determine buy/sell for transaction: ${signature}`,
+      tokenIn,
+      tokenOut,
+    );
+    return null;
+  }
+}
+
+async function getTokenMetadata(mint) {
+  try {
+    // Check KNOWN_TOKENS
+    if (KNOWN_TOKENS[mint]) {
+      return KNOWN_TOKENS[mint];
+    }
+
+    // If not in KNOWN_TOKENS, default to symbol/name being the mint
+    return {
+      symbol: mint.substring(0, 8), // Shortened mint as symbol
+      name: mint, // Full mint as name
+    };
+  } catch (error) {
+    console.error('Error fetching token metadata:', error);
+    return { symbol: 'Unknown', name: 'Unknown' };
+  }
+}
+
+async function fetchMarketCap(tokenAddress) {
+  try {
+    const response = await fetch(`${DEX_SCREENER_API}${tokenAddress}`);
+    if (!response.ok) {
+      throw new Error(`DexScreener API request failed with status ${response.status}`);
+    }
+    const data = await response.json();
+
+    if (data.pairs && data.pairs.length > 0) {
+      const mcap = data.pairs[0].fdv;
+      if (mcap) {
+        return formatMarketCap(mcap);
+      }
+    }
+    return 'Unknown';
+  } catch (error) {
+    console.error('Error fetching market cap:', error);
+    return 'Unknown';
+  }
+}
+
+function formatMarketCap(mcap) {
+  if (mcap >= 1000000) {
+    return `${(mcap / 1000000).toFixed(1)}M`;
+  } else if (mcap >= 1000) {
+    return `${(mcap / 1000).toFixed(0)}K`;
+  } else {
+    return `${mcap.toFixed(0)}`;
+  }
+}
+
+function formatMessage({
+  isBuy,
+  walletLabel,
+  tokenInSymbol,
+  tokenOutSymbol,
+  amountIn,
+  amountOut,
+  tokenInName,
+  tokenOutName,
+  marketCap,
+  tokenAddress,
+}) {
+  const action = isBuy ? '🟢 BOUGHT' : '🔴 SOLD';
+  const inName = tokenInName ? `(${tokenInName})` : '';
+  const outName = tokenOutName ? `(${tokenOutName})` : '';
+
+  return `
+${action}
+${walletLabel} ${isBuy ? 'bought' : 'sold'} ${amountOut} ${tokenOutSymbol} ${outName} ${isBuy ? 'with' : 'for'} ${amountIn} ${tokenInSymbol} ${inName}
+
+MC: ${marketCap}
+
+${tokenAddress}
+    `;
+}
+
 async function sendToTelegram(message, tokenAddress) {
   const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  
+
   const inlineKeyboard = {
     inline_keyboard: [
       [
         {
-          text: "🔍Trojan",
-          url: `https://t.me/hector_trojanbot?start=d-raybot-${tokenAddress}`
+          text: '🔍Trojan',
+          url: `https://t.me/hector_trojanbot?start=d-raybot-${tokenAddress}`,
         },
         {
-          text: "🧪BullX",
-          url: `https://bullx.io/terminal?chainId=1399811149&address=${tokenAddress}`
-        }
-      ]
-    ]
+          text: '🧪BullX',
+          url: `https://bullx.io/terminal?chainId=1399811149&address=${tokenAddress}`,
+        },
+      ],
+    ],
   };
 
   const response = await fetch(telegramUrl, {
@@ -106,161 +288,69 @@ async function sendToTelegram(message, tokenAddress) {
     body: JSON.stringify({
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
-      parse_mode: "HTML",
-      reply_markup: JSON.stringify(inlineKeyboard)
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify(inlineKeyboard),
     }),
   });
 
   if (!response.ok) {
-    console.error('Failed to send message to Telegram:', await response.json());
+    const errorData = await response.json();
+    console.error('Failed to send message to Telegram:', errorData);
   }
 }
 
-// Add this function to format the message
-async function formatMessage(swapInfo, marketCap) {
-  return `🟢DAO BUY
-${swapInfo.tokenOutSymbol} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
+async function setupWebhook() {
+  const currentWebhooks = await (
+    await fetch(HELIUS_WEBHOOK_URL)
+  ).json();
 
-MC: ${marketCap}
+  if (currentWebhooks.length > 0) {
+    const webhookID = currentWebhooks[0].webhookID;
+    console.log('Deleting webhook', webhookID);
 
-${swapInfo.tokenOut}`;
-}
+    const deleteResponse = await fetch(
+      `${HELIUS_WEBHOOK_URL}&webhookID=${webhookID}`,
+      {
+        method: 'DELETE',
+      },
+    );
 
-async function getTokenMetadata(connection, mint) {
-  try {
-    // First check KNOWN_TOKENS for daos.fun tokens
-    if (KNOWN_TOKENS[mint]) {
-      return {
-        symbol: KNOWN_TOKENS[mint].symbol,
-        name: KNOWN_TOKENS[mint].name,
-        marketCap: 'Unknown'
-      };
+    if (!deleteResponse.ok) {
+      console.error(
+        'Failed to delete webhook:',
+        await deleteResponse.text(),
+      );
+      return new Response('Failed to delete webhook', { status: 500 });
     }
 
-    // For other tokens, try Jupiter API first
-    const response = await fetch(JUPITER_API_URL);
-    if (response.ok) {
-      const tokens = await response.json();
-      const tokenInfo = tokens.find(t => t.address === mint);
-      if (tokenInfo) {
-        return {
-          symbol: tokenInfo.symbol.toLowerCase(),
-          name: tokenInfo.name,
-          marketCap: 'Unknown'
-        };
-      }
-    }
-
-    // If Jupiter API fails, try Solana token metadata API as fallback
-    const metadataResponse = await fetch(`${METADATA_API_URL}/${mint}`);
-    if (metadataResponse.ok) {
-      const metadata = await metadataResponse.json();
-      return metadata;
-    }
-
-    // Last resort fallback for SOL
-    if (mint === SOL_MINT) {
-      return {
-        symbol: 'SOL',
-        name: 'SOL',
-        marketCap: 'Unknown'
-      };
-    }
-
-    throw new Error('Token metadata not found');
-  } catch (error) {
-    console.error('Error fetching token metadata:', error);
-    
-    // Default fallback
-    return {
-      symbol: 'Unknown',
-      name: 'Unknown Token',
-      marketCap: 'Unknown'
-    };
+    console.log('Webhook deleted successfully');
   }
-}
 
-function getSymbolFromMint(mint) {
-  if (mint === 'So11111111111111111111111111111111111111112') {
-    return 'SOL';
+  const webhookData = {
+    webhookURL: 'YOUR_WEBHOOK_URL', // Replace with your worker's URL
+    accountAddresses: Object.keys(WALLET_LABELS),
+    transactionTypes: ['ANY'],
+    webhookType: 'enhanced', // Use 'enhanced' for detailed transaction data
+  };
+
+  const createResponse = await fetch(HELIUS_WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(webhookData),
+  });
+
+  if (!createResponse.ok) {
+    console.error('Failed to create webhook:', await createResponse.text());
+    return new Response('Failed to create webhook', { status: 500 });
   }
-  return 'Unknown';
-}
 
-async function fetchMarketCap(tokenAddress) {
-  try {
-    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
-    const data = await response.json();
-    
-    if (data.pairs && data.pairs[0]) {
-      const mcap = data.pairs[0].fdv;
-      if (mcap) {
-        // Format market cap
-        if (mcap >= 1000000) {
-          return `${(mcap / 1000000).toFixed(0)}k`;
-        } else {
-          return `${(mcap / 1000).toFixed(0)}k`;
-        }
-      }
-    }
-    return 'Unknown';
-  } catch (error) {
-    console.error('Error fetching market cap:', error);
-    return 'Unknown';
-  }
-}
+  const newWebhook = await createResponse.json();
+  console.log('Webhook created successfully:', newWebhook);
 
-// Update the handleRequest function to properly detect Jupiter swaps
-async function handleRequest(request) {
-  if (request.method === 'POST') {
-    const requestBody = await request.json();
-    console.log('Received POST request with body:', JSON.stringify(requestBody, null, 2));
-
-    const event = requestBody[0];
-    console.log('Event:', JSON.stringify(event, null, 2));
-    
-    // Check for Jupiter or daos.fun swaps
-    const isJupiterSwap = event?.source === 'JUPITER' && event?.tokenTransfers?.length >= 2;
-    const isDaosFunSwap = event?.instructions?.some(ix => 
-      ix.programId === DAOS_FUN_PROGRAM_ID
-    ) && event?.tokenTransfers?.length >= 2;
-    
-    console.log('Transaction type checks:', { isJupiterSwap, isDaosFunSwap, tokenTransfers: event?.tokenTransfers?.length });
-
-    if (isJupiterSwap || isDaosFunSwap) {
-      const { tokenTransfers } = event;
-      const swapInfo = await analyzeSwap(tokenTransfers);
-      
-      // Find the wallet that initiated the swap
-      const walletAddress = event.accountData.find(account => 
-        account.nativeBalanceChange < -5000 && // Changed from just negative to -5000 to exclude fee payer
-        !account.tokenBalanceChanges.some(change => change.mint === SOL_MINT) // Exclude wrapped SOL accounts
-      )?.account;
-
-      if (walletAddress) {
-        // Check if this is a sell of a tracked token
-        const trackedSell = tokenTransfers.find(transfer => 
-          KNOWN_TOKENS.hasOwnProperty(transfer.mint) &&
-          transfer.tokenAmount > 0 &&
-          transfer.fromUserAccount === walletAddress
-        );
-
-        const isBuy = !trackedSell;
-        
-        const message = `${isBuy ? '🟢DAO BUY' : '🔴DAO SELL'}
-${WALLET_LABELS[walletAddress] || 'Unknown'} ${isBuy ? 'bought' : 'sold'} ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} ${isBuy ? 'with' : 'for'} ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} (${isBuy ? swapInfo.tokenOutName : swapInfo.tokenInName})
-
-MC: ${swapInfo.marketCap || 'Unknown'}
-
-${isBuy ? swapInfo.tokenOut : swapInfo.tokenIn}`;
-        
-        await sendToTelegram(message, isBuy ? swapInfo.tokenOut : swapInfo.tokenIn);
-      } else {
-        console.log('No matching wallet label found');
-      }
-    } else {
-      console.log('Not a Jupiter or daos.fun swap');
-    }
-  }
-  return new Response('OK', { status: 200 });
+  return new Response(
+    `Webhook created successfully: ${JSON.stringify(newWebhook)}`,
+    { status: 200 },
+  );
 }
