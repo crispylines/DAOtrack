@@ -131,6 +131,12 @@ function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
     return null;
   }
 
+  let isBuy = null; // Initialize to null
+  let tokenIn = null;
+  let tokenOut = null;
+  let amountIn = null;
+  let amountOut = null;
+
   // 1. Check for SELL of a KNOWN_TOKEN *from* the wallet
   const sellTransfer = tokenTransfers.find(
     (t) =>
@@ -140,28 +146,27 @@ function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
   );
 
   if (sellTransfer) {
-    const isBuy = false;
-    const tokenIn = sellTransfer.mint;
-    const amountIn = sellTransfer.tokenAmount;
+    isBuy = false;
+    tokenIn = sellTransfer.mint;
+    amountIn = sellTransfer.tokenAmount;
 
-    // Find corresponding BUY (usually SOL or another token *to* the wallet)
+    // Find corresponding BUY
     const buyTransfer = tokenTransfers.find(
       (t) => t.toUserAccount === walletAddress && t.mint !== tokenIn,
     );
     if (buyTransfer) {
-      const tokenOut = buyTransfer.mint;
-      const amountOut = buyTransfer.tokenAmount;
-      return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
+      tokenOut = buyTransfer.mint;
+      amountOut = buyTransfer.tokenAmount;
     } else {
       console.warn(
         `[daos.fun SELL] Couldn't find corresponding buy transfer for ${signature}`,
         JSON.stringify(tokenTransfers, null, 2),
       );
-      return { isBuy, tokenIn, tokenOut: 'Unknown', amountIn, amountOut: 0 };
+      // You might still want to return a partial result here
     }
   }
 
-  // 2. Check for BUY of KNOWN_TOKEN *to* wallet
+  // 2. Check for BUY of a KNOWN_TOKEN *to* the wallet (INDEPENDENT of the sell check)
   const buyTransfer = tokenTransfers.find(
     (t) =>
       KNOWN_TOKENS.hasOwnProperty(t.mint) &&
@@ -170,11 +175,11 @@ function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
   );
 
   if (buyTransfer) {
-    const isBuy = true;
-    const tokenOut = buyTransfer.mint;
-    const amountOut = buyTransfer.tokenAmount;
+    isBuy = true;
+    tokenOut = buyTransfer.mint;
+    amountOut = buyTransfer.tokenAmount;
 
-    // Find corresponding SELL (usually SOL *from* the wallet)
+    // Find corresponding SELL
     const sellTransferInner = tokenTransfers.find(
       (t) =>
         t.fromUserAccount === walletAddress &&
@@ -183,21 +188,23 @@ function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
     );
 
     if (sellTransferInner) {
-      const tokenIn = sellTransferInner.mint;
-      const amountIn = sellTransferInner.tokenAmount;
-      return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
+      tokenIn = sellTransferInner.mint;
+      amountIn = sellTransferInner.tokenAmount;
     } else {
-      console.log(
+      console.warn(
         `[daos.fun BUY] Couldn't find corresponding sell transfer for ${signature}`,
       );
-      return null;
+      // You might still want to return a partial result here
     }
   }
 
-  console.log(
-    `Transaction ${signature} is not a tracked buy or sell within daos.fun.`,
-  );
-  return null; // Neither a buy nor a sell of interest
+  // Return the result only if we have valid values
+  if (isBuy !== null && tokenIn && tokenOut && amountIn && amountOut) {
+    return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
+  } else {
+      console.log(`[daos.fun] Transaction ${signature} is not a tracked buy or sell.`);
+      return null;
+  }
 }
 
 function analyzeNonDaosFunTransaction(tokenTransfers, walletAddress, signature) {
