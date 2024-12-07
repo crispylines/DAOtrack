@@ -56,7 +56,6 @@ async function processTransaction(transaction) {
   try {
     const { accountData, signature } = transaction;
 
-    // Check if the transaction involves any of the tracked wallets
     const involvedWallet = accountData.find((account) =>
       WALLET_LABELS.hasOwnProperty(account.account),
     );
@@ -69,7 +68,6 @@ async function processTransaction(transaction) {
 
     const walletAddress = involvedWallet.account;
 
-    // Analyze the transaction for relevant actions (buy/sell)
     const analysisResult = await analyzeTransaction(
       transaction,
       walletAddress,
@@ -81,14 +79,13 @@ async function processTransaction(transaction) {
 
     const { isBuy, tokenIn, tokenOut, amountIn, amountOut } = analysisResult;
 
-    // Get token metadata
-    const tokenInMetadata = await getTokenMetadata(tokenIn);
-    const tokenOutMetadata = await getTokenMetadata(tokenOut);
+    // Fetch metadata and market cap concurrently
+    const [tokenInMetadata, tokenOutMetadata, marketCap] = await Promise.all([
+      getTokenMetadata(tokenIn),
+      getTokenMetadata(tokenOut),
+      fetchMarketCap(isBuy ? tokenOut : tokenIn),
+    ]);
 
-    // Fetch market cap (only for the bought/sold token)
-    const marketCap = await fetchMarketCap(isBuy ? tokenOut : tokenIn);
-
-    // Construct the message
     const message = formatMessage({
       isBuy,
       walletLabel: WALLET_LABELS[walletAddress],
@@ -102,10 +99,11 @@ async function processTransaction(transaction) {
       tokenAddress: isBuy ? tokenOut : tokenIn,
     });
 
-    // Send the message to Telegram
     await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
   } catch (error) {
     console.error('Error processing transaction:', error);
+    // Optionally: Send an error message to Telegram
+    await sendToTelegram(`Error processing transaction: ${error}`);
   }
 }
 
@@ -113,92 +111,162 @@ async function analyzeTransaction(transaction, walletAddress) {
   const { accountData, instructions, tokenTransfers, signature } = transaction;
 
   const isDaosFunInteraction = instructions.some(
-      (ix) => ix.programId === DAOS_FUN_PROGRAM_ID,
+    (ix) => ix.programId === DAOS_FUN_PROGRAM_ID,
   );
 
-  if (tokenTransfers.length < 2) {
-      console.log(`Transaction ${signature} has fewer than 2 token transfers; skipping.`);
-      return null;
-  }
-
-  let isBuy = false;
-  let tokenIn = '';
-  let tokenOut = '';
-  let amountIn = 0;
-  let amountOut = 0;
-
   if (isDaosFunInteraction) {
-      console.log(`Transaction ${signature} is a daos.fun interaction.`);
-
-      // 1. Check for SELL of a KNOWN_TOKEN *from* the wallet
-      const sellTransfer = tokenTransfers.find(
-          (t) => KNOWN_TOKENS.hasOwnProperty(t.mint) && t.fromUserAccount === walletAddress && t.tokenAmount > 0
-      );
-
-      if (sellTransfer) {
-          isBuy = false;
-          tokenIn = sellTransfer.mint;
-          amountIn = sellTransfer.tokenAmount;
-
-          // Find corresponding BUY (usually SOL or another token *to* the wallet)
-          const buyTransfer = tokenTransfers.find((t) => t.toUserAccount === walletAddress && t.mint !== tokenIn);
-          if (buyTransfer) {
-              tokenOut = buyTransfer.mint;
-              amountOut = buyTransfer.tokenAmount;
-          } else {
-              console.warn(`[daos.fun SELL] Couldn't find corresponding buy transfer for ${signature}`, JSON.stringify(tokenTransfers, null, 2)); // More detailed logging!
-              //  Handle the case where a corresponding buy isn't found (e.g., a token burn). Return a partial result, or return null.
-              //  Here, I'll return a partial result (you can change this if needed)
-              return { isBuy, tokenIn, tokenOut: "Unknown", amountIn, amountOut: 0 };
-          }
-      } else {
-          // 2. If no SELL, check for BUY of KNOWN_TOKEN *to* wallet (as before)
-          const buyTransfer = tokenTransfers.find(
-              (t) => KNOWN_TOKENS.hasOwnProperty(t.mint) && t.toUserAccount === walletAddress && t.tokenAmount > 0
-          );
-          if (buyTransfer) {
-              // ... (rest of the buy logic - same as the previous version)
-              isBuy = true;
-              tokenOut = buyTransfer.mint;
-              amountOut = buyTransfer.tokenAmount;
-              const sellTransferInner = tokenTransfers.find(
-                (t) => t.fromUserAccount === walletAddress && (t.mint === SOL_MINT || KNOWN_TOKENS.hasOwnProperty(t.mint)) && t.tokenAmount > 0
-              );
-
-              if (sellTransferInner) {
-                tokenIn = sellTransferInner.mint;
-                amountIn = sellTransferInner.tokenAmount;
-              } else {
-                console.log(`[daos.fun BUY] Couldn't find corresponding sell transfer for ${signature}`);
-                return null;
-              }
-          } else {
-              console.log(`Transaction ${signature} is not a tracked buy or sell within daos.fun.`);
-              return null; // Neither a buy nor a sell of interest
-          }
-      }
+    console.log(`Transaction ${signature} is a daos.fun interaction.`);
+    return analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature);
   } else {
-      console.log(`Transaction ${signature} is NOT a daos.fun interaction.`);
-      // ... (rest of the non-daos.fun logic - keep the previous correct code here)
+    console.log(`Transaction ${signature} is NOT a daos.fun interaction.`);
+    return analyzeNonDaosFunTransaction(tokenTransfers, walletAddress, signature);
+  }
+}
+
+function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
+  if (tokenTransfers.length < 2) {
+    console.log(
+      `Transaction ${signature} has fewer than 2 token transfers; skipping.`,
+    );
+    return null;
   }
 
-  if (tokenIn && tokenOut && amountIn && amountOut) {  // Added amount checks!
-      console.log(`Transaction Analysis Result:`, {
-          isBuy,
-          tokenIn,
-          tokenOut,
-          amountIn,
-          amountOut,
-      });
+  // 1. Check for SELL of a KNOWN_TOKEN *from* the wallet
+  const sellTransfer = tokenTransfers.find(
+    (t) =>
+      KNOWN_TOKENS.hasOwnProperty(t.mint) &&
+      t.fromUserAccount === walletAddress &&
+      t.tokenAmount > 0,
+  );
+
+  if (sellTransfer) {
+    const isBuy = false;
+    const tokenIn = sellTransfer.mint;
+    const amountIn = sellTransfer.tokenAmount;
+
+    // Find corresponding BUY (usually SOL or another token *to* the wallet)
+    const buyTransfer = tokenTransfers.find(
+      (t) => t.toUserAccount === walletAddress && t.mint !== tokenIn,
+    );
+    if (buyTransfer) {
+      const tokenOut = buyTransfer.mint;
+      const amountOut = buyTransfer.tokenAmount;
       return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
-  } else {
+    } else {
       console.warn(
-          `Could not fully determine buy/sell for transaction: ${signature}`,
-          { tokenIn, tokenOut, amountIn, amountOut },
-          JSON.stringify(tokenTransfers, null, 2), // Log tokenTransfers for debugging!
+        `[daos.fun SELL] Couldn't find corresponding buy transfer for ${signature}`,
+        JSON.stringify(tokenTransfers, null, 2),
+      );
+      return { isBuy, tokenIn, tokenOut: 'Unknown', amountIn, amountOut: 0 };
+    }
+  }
+
+  // 2. Check for BUY of KNOWN_TOKEN *to* wallet
+  const buyTransfer = tokenTransfers.find(
+    (t) =>
+      KNOWN_TOKENS.hasOwnProperty(t.mint) &&
+      t.toUserAccount === walletAddress &&
+      t.tokenAmount > 0,
+  );
+
+  if (buyTransfer) {
+    const isBuy = true;
+    const tokenOut = buyTransfer.mint;
+    const amountOut = buyTransfer.tokenAmount;
+
+    // Find corresponding SELL (usually SOL *from* the wallet)
+    const sellTransferInner = tokenTransfers.find(
+      (t) =>
+        t.fromUserAccount === walletAddress &&
+        (t.mint === SOL_MINT || KNOWN_TOKENS.hasOwnProperty(t.mint)) &&
+        t.tokenAmount > 0,
+    );
+
+    if (sellTransferInner) {
+      const tokenIn = sellTransferInner.mint;
+      const amountIn = sellTransferInner.tokenAmount;
+      return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
+    } else {
+      console.log(
+        `[daos.fun BUY] Couldn't find corresponding sell transfer for ${signature}`,
       );
       return null;
+    }
   }
+
+  console.log(
+    `Transaction ${signature} is not a tracked buy or sell within daos.fun.`,
+  );
+  return null; // Neither a buy nor a sell of interest
+}
+
+function analyzeNonDaosFunTransaction(tokenTransfers, walletAddress, signature) {
+  if (tokenTransfers.length < 2) {
+    console.log(
+      `Transaction ${signature} has fewer than 2 token transfers; skipping.`,
+    );
+    return null;
+  }
+
+  // Iterate through transfers to find potential buys/sells
+  for (let i = 0; i < tokenTransfers.length; i++) {
+    const transfer1 = tokenTransfers[i];
+
+    // Possible SELL (token leaving the wallet)
+    if (
+      transfer1.fromUserAccount === walletAddress &&
+      transfer1.tokenAmount > 0
+    ) {
+      for (let j = 0; j < tokenTransfers.length; j++) {
+        if (i === j) continue; // Skip comparison with itself
+        const transfer2 = tokenTransfers[j];
+
+        // Corresponding BUY (token entering the wallet)
+        if (
+          transfer2.toUserAccount === walletAddress &&
+          transfer2.tokenAmount > 0
+        ) {
+          return {
+            isBuy: false,
+            tokenIn: transfer1.mint,
+            tokenOut: transfer2.mint,
+            amountIn: transfer1.tokenAmount,
+            amountOut: transfer2.tokenAmount,
+          };
+        }
+      }
+    }
+
+    // Possible BUY (token entering the wallet)
+    if (
+      transfer1.toUserAccount === walletAddress &&
+      transfer1.tokenAmount > 0
+    ) {
+      for (let j = 0; j < tokenTransfers.length; j++) {
+        if (i === j) continue;
+        const transfer2 = tokenTransfers[j];
+
+        // Corresponding SELL (token leaving the wallet)
+        if (
+          transfer2.fromUserAccount === walletAddress &&
+          transfer2.tokenAmount > 0
+        ) {
+          return {
+            isBuy: true,
+            tokenIn: transfer2.mint,
+            tokenOut: transfer1.mint,
+            amountIn: transfer2.tokenAmount,
+            amountOut: transfer1.tokenAmount,
+          };
+        }
+      }
+    }
+  }
+
+  console.log(
+    `Transaction ${signature} is not a tracked buy or sell (non-daos.fun).`,
+  );
+  return null;
 }
 
 async function getTokenMetadata(mint) {
