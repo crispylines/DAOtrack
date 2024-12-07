@@ -112,14 +112,12 @@ async function processTransaction(transaction) {
 async function analyzeTransaction(transaction, walletAddress) {
   const { accountData, instructions, tokenTransfers, signature } = transaction;
 
-  // Check for daos.fun program interaction
   const isDaosFunInteraction = instructions.some(
     (ix) => ix.programId === DAOS_FUN_PROGRAM_ID,
   );
 
-  // Check for relevant token transfers (at least 2 for a swap)
   if (tokenTransfers.length < 2) {
-    return null;
+    return null; // Not a swap if fewer than 2 transfers
   }
 
   let isBuy = false;
@@ -128,7 +126,6 @@ async function analyzeTransaction(transaction, walletAddress) {
   let amountIn = 0;
   let amountOut = 0;
 
-  // Logic for identifying buy/sell in daos.fun interactions
   if (isDaosFunInteraction) {
     for (const transfer of tokenTransfers) {
       if (
@@ -171,9 +168,39 @@ async function analyzeTransaction(transaction, walletAddress) {
       }
     }
   } else {
-    // Handle other types of swaps/transfers if needed in the future
-    return null;
+    // Find a transfer of a KNOWN_TOKEN *to* the wallet
+    const buyTransfer = tokenTransfers.find((transfer) =>
+      KNOWN_TOKENS.hasOwnProperty(transfer.mint) && // Ensure it's a tracked token
+      transfer.toUserAccount === walletAddress &&  // Received by the wallet
+      transfer.tokenAmount > 0
+    );
+
+    if (buyTransfer) {
+      isBuy = true;
+      tokenOut = buyTransfer.mint;
+      amountOut = buyTransfer.tokenAmount;
+
+      // Find the corresponding *sell* (SOL or a KNOWN_TOKEN from the wallet)
+      const sellTransfer = tokenTransfers.find((transfer) =>
+        transfer.fromUserAccount === walletAddress &&
+        (transfer.mint === SOL_MINT || KNOWN_TOKENS.hasOwnProperty(transfer.mint)) &&
+        transfer.tokenAmount > 0
+      );
+
+      if (sellTransfer) {
+        tokenIn = sellTransfer.mint;
+        amountIn = sellTransfer.tokenAmount;
+      } else {
+        console.log(`Couldn't find corresponding sell for buy transaction: ${signature}`);
+        return null;
+      }
+    } else {
+      return null; // No buy of a known token found
+    }
+
   }
+
+
 
   if (tokenIn && tokenOut) {
     return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
