@@ -80,19 +80,3 @@ export const KNOWN_TOKENS = {
     logoURI: null
   }
 }; 
-
-// Add a helper function to check if a token transfer is a sell of a tracked token
-function isTrackedTokenSell(tokenTransfer) {
-  const tokenMint = tokenTransfer.mint;
-  return KNOWN_TOKENS.hasOwnProperty(tokenMint) && 
-         tokenTransfer.tokenAmount > 0 && 
-         tokenTransfer.fromUserAccount !== tokenTransfer.toUserAccount;
-}
-
-// Then in your transaction processing logic:
-const trackedSells = tx.tokenTransfers.filter(isTrackedTokenSell);
-if (trackedSells.length > 0) {
-  // This is a sell of a tracked token
-  const soldToken = KNOWN_TOKENS[trackedSells[0].mint];
-  console.log(`Detected sell of ${soldToken.symbol}`);
-} 
