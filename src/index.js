@@ -12,21 +12,21 @@ const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY
 // Define wallet labels - simplified version
 const WALLET_LABELS = {
   'E4FYNnRGoxRva79HrfxwpPfHUVJWVxrttQ26FwvG11i': '#PAWG',
-  'AM84n1LLcxHXnvkDpEWM6DgozwZPVhfL3qhvwGf3fGPK': '#ai16z',
+  'AM84n1iLdxgVTAyENBcLdjXoyvjentTbu5Q6EpKV1PeG': '#ai16z',
   'ChUZjgoZoZ86WucToFmnjA3UuQYpd43sygf9CvUtNsct': '#daojones',
   '9qNCRKR7H3W3jy4vftdBQpVvVX72unpKBkSU1NUMTapm': '#diddycap',
-  '9J1GGafFPwSw4JnVVmR6tGFXNKwNhrJhYRJMqpqA9VfP': '#damp',
-  '6wTVWXQDDkHJUMRRwKJfxmXg2PLuqdeK5qN9RJKwzEu3': '#late',
-  'MsStLL7V8Q1dEPrFGbw6KBZd9GaE9CJCqwGwzwRZrxwR': '#wAI',
-  'gsbNUwCLmWQFgVBmvXJKX1SjVYVE7Y9FkcVw7VYXmVwC': '#koto',
-  '988CrdL24Gy4pxWwfBzYTVE9TQPvf1kqtXGGm4cLGxwk': '#inf',
-  '7zWD593WXZEqwZKcBVZhUWEr6XgmYEZUxcwYEZrVE7Ao': '#mono',
+  'FXATxe498EMgqvvLgr63xB2A5FtASwkRjGpH9CYWRnEf': '#damp',
+  'CEqWovPj5PD3tGPanjQr9AUJc3nzxgGVrcnNPtwdenmX': '#late',
+  'Ms5tLL7VWCesMhw3NAUToUJ7Tic94WZoSZYKq1vu8u1': '#wAI',
+  'gsbJNUwQUYdCsRrmkKkkpJBYefKdwDp9rsLCZHJ1gMC': '#koto',
+  '988CrdL24ksML1edp3JHPf7A3WGMk38V5Uc2qR8F5NXv': '#inf',
+  '7zWD593WjQnZsJsTN7txgWioDShp1vhmpeKzegsuYzfj': '#mono',
   'FDyxm7Aq6cmXQX8oKmJcySUVguGtSddceZnJyriw7qVc': '#GFC',
-  '59oBqsS2WXZEqwZKcBVZhUWEr6XgmYEZUxcwYEZrVE7A': '#DCG',
-  'CmCX9JfuLFwZVE9pxWwfBzYTVE9TQPvf1kqtXGGm4cLG': '#milady',
-  'GrgCuU7XWXZEqwZKcBVZhUWEr6XgmYEZUxcwYEZrVE7A': '#retardio',
-  '32hGMS8S2WXZEqwZKcBVZhUWEr6XgmYEZUxcwYEZrVE7': '#paradigm',
-  'DmyYENoLFwZVE9pxWwfBzYTVE9TQPvf1kqtXGGm4cLGx': '#girle'
+  '59oBqs32Wysz52AMHAnxm3VBo1Gehs42s6m2rAY2To3o': '#DCG',
+  'CmCX9JfuKMoTe8w4utoACM3XnPuqRCVozyfpx4DLwjkb': '#milady',
+  'GrgCuU7X1hrTsxCcNffpkBZ7Tt2JJtyLkQfB2AyP5pXK': '#retardio',
+  '32hGMSB9KcSU87ww6zGWeWbtnxP8vZYW5bZeykrje9vS': '#paradigm',
+  'A6gM9zTVdN6CLqTdg68HpU9oZ8QmTYvt8onQZxUBHBre': '#girle'
   // Add other wallet labels as needed
 };
 
@@ -42,70 +42,6 @@ const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
 import { KNOWN_TOKENS } from './tokenList.js';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-
-// Add these constants at the top with the other constants
-const HARDCODED_TOKENS = {
-  'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC': {
-    symbol: 'ai16z',
-    name: 'ai16z'
-  },
-  'EqsBaDzag9bB9Tkck8kBXtQj4DdXTSr7S5V3aH3nVfZr': {
-    symbol: 'PAWG',
-    name: 'Private Asset Wealth Group'
-  },
-  '991tCxvXrVMXt6YHhKcNiNyR6hmPW4iQBe7exBeuEJQA': {
-    symbol: 'daojones',
-    name: 'DAO Jones'
-  },
-  '2ToWKrXBvpvhvk6K4LHNHh4KhKqUWKjNVPJ9ixv6dJRk': {
-    symbol: 'diddycap',
-    name: 'Diddy Capital'
-  },
-  '4FHsJkJJRk8WzTVZUWh4GnAVrHbJ8KXh6RNmxZCKKFAq': {
-    symbol: 'damp',
-    name: 'DAMP Protocol'
-  },
-  '78E2W1CcWjqLWXszrPJ6uFyg7NCZEqVAJTfB85CNZR9m': {
-    symbol: 'late',
-    name: 'Late Capital'
-  },
-  'BgBYApuddHLsqkGZpyHmvNqmXhGqrz6p9mSxsaQNJBvN': {
-    symbol: 'wAI',
-    name: 'wAI Combinator'
-  },
-  '6PZqzXGZQQRUwXCvKKEJ9VqYNK9YUPkBxKE9YJTewHxU': {
-    symbol: 'KOTO',
-    name: 'KOTOPIA'
-  },
-  'Df41efRpYgLe9YQeGDDwHKJJ4UhePWMEZS3bwWkRdZvk': {
-    symbol: 'inf',
-    name: 'Inferno'
-  },
-  'EqYnLeJgWUZ7U4C4uF481eAe2PkcyoqxDVFEMYL282Ux': {
-    symbol: 'mono',
-    name: 'Monopoly'
-  },
-  '55PCCXa6oRk6wHxVQpojWfBvQj8nMwLMX9EkYACZb6q7': {
-    symbol: 'GFC',
-    name: 'George Fund Capital'
-  },
-  'Ca5pGwrrwtUgBMDe4sL3UxgqG9GsUwXCRWm1UsYJKnZk': {
-    symbol: 'milady',
-    name: 'Milady'
-  },
-  'CC4aRC4wiw4UfRBmUZZo9jqHiKnUZbL5bWwMHHHqnpFw': {
-    symbol: 'retardio',
-    name: 'Retardio'
-  },
-  '5RWMzxESpvJTf1TGxUJqy5LHhqzjjUjZwEEWkegTiJSF': {
-    symbol: 'paradigm',
-    name: 'Paradigm'
-  },
-  'DmyYENoLFwZVE9pxWwfBzYTVE9TQPvf1kqtXGGm4cLGx': {
-    symbol: 'girle',
-    name: 'girl econo'
-  }
-};
 
 // Add this constant at the top with other constants
 const METADATA_API_URL = "https://token-metadata.solana-labs.vercel.app/api/metadata";
