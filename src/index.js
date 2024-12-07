@@ -43,6 +43,7 @@ import { KNOWN_TOKENS } from './tokenList.js';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
+
 // Add this constant at the top with other constants
 const METADATA_API_URL = "https://token-metadata.solana-labs.vercel.app/api/metadata";
 
@@ -230,22 +231,28 @@ async function handleRequest(request) {
       const { tokenTransfers } = event;
       const swapInfo = await analyzeSwap(tokenTransfers);
       
-      // Find the wallet that initiated the swap - look for the account with negative SOL balance change
+      // Find the wallet that initiated the swap
       const walletAddress = event.accountData.find(account => 
         account.nativeBalanceChange < -5000 && // Changed from just negative to -5000 to exclude fee payer
         !account.tokenBalanceChanges.some(change => change.mint === SOL_MINT) // Exclude wrapped SOL accounts
       )?.account;
 
       if (walletAddress) {
-        // Determine if this is a buy (SOL -> Token) or sell (Token -> SOL)
-        const isBuy = swapInfo.tokenInSymbol === 'SOL';
+        // Check if this is a sell of a tracked token
+        const trackedSell = tokenTransfers.find(transfer => 
+          KNOWN_TOKENS.hasOwnProperty(transfer.mint) &&
+          transfer.tokenAmount > 0 &&
+          transfer.fromUserAccount === walletAddress
+        );
+
+        const isBuy = !trackedSell;
         
-        const message = `🟢DAO BUY
-${WALLET_LABELS[walletAddress] || 'Unknown'} swapped ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} for ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} (${swapInfo.tokenOutName})
+        const message = `${isBuy ? '🟢DAO BUY' : '🔴DAO SELL'}
+${WALLET_LABELS[walletAddress] || 'Unknown'} ${isBuy ? 'bought' : 'sold'} ${swapInfo.amountOut} ${swapInfo.tokenOutSymbol} ${isBuy ? 'with' : 'for'} ${swapInfo.amountIn} ${swapInfo.tokenInSymbol} (${isBuy ? swapInfo.tokenOutName : swapInfo.tokenInName})
 
 MC: ${swapInfo.marketCap || 'Unknown'}
 
-${swapInfo.tokenOut}`;
+${isBuy ? swapInfo.tokenOut : swapInfo.tokenIn}`;
         
         await sendToTelegram(message, isBuy ? swapInfo.tokenOut : swapInfo.tokenIn);
       } else {
