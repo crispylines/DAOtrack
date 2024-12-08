@@ -77,6 +77,13 @@ async function processTransaction(transaction) {
       fetchMarketCap(isBuy ? tokenOut : tokenIn),
     ]);
 
+    console.log('Transaction analysis:', {
+      isBuy,
+      tokenIn,
+      tokenOut,
+      tokenAddress: isBuy ? tokenOut : tokenIn
+    });
+
     const message = formatMessage({
       isBuy,
       walletLabel: WALLET_LABELS[walletAddress],
@@ -87,8 +94,10 @@ async function processTransaction(transaction) {
       tokenInName: tokenInMetadata.name,
       tokenOutName: tokenOutMetadata.name,
       marketCap,
-      tokenAddress: isBuy ? tokenOut : tokenIn,  // This line is correct, but let's verify tokenIn/tokenOut are set correctly
+      tokenAddress: isBuy ? tokenOut : tokenIn,
     });
+
+    console.log('Formatted message tokenAddress:', isBuy ? tokenOut : tokenIn);
 
     await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
   } catch (error) {
@@ -125,6 +134,8 @@ function analyzeJupiterTransaction(tokenTransfers, walletAddress, signature) {
       transfer.toUserAccount === walletAddress
   );
 
+  console.log('Wallet transfers:', walletTransfers);
+
   if (walletTransfers.length < 2) {
       console.log(`No relevant token transfers found for wallet in Jupiter transaction ${signature}`);
       return null;
@@ -140,6 +151,11 @@ function analyzeJupiterTransaction(tokenTransfers, walletAddress, signature) {
       transfer.toUserAccount === walletAddress
   );
 
+  console.log('Transfer analysis:', {
+    tokenInTransfer,
+    tokenOutTransfer
+  });
+
   if (!tokenInTransfer || !tokenOutTransfer) {
       console.log(`Couldn't identify in/out transfers in Jupiter transaction ${signature}`);
       return null;
@@ -147,13 +163,17 @@ function analyzeJupiterTransaction(tokenTransfers, walletAddress, signature) {
 
   const isBuy = tokenOutTransfer.mint !== SOL_MINT; // If receiving non-SOL token, it's a buy
   
-  return {
+  const result = {
       isBuy,
       tokenIn: tokenInTransfer.mint,
       tokenOut: tokenOutTransfer.mint,
       amountIn: tokenInTransfer.tokenAmount,
       amountOut: tokenOutTransfer.tokenAmount
   };
+
+  console.log('Jupiter analysis result:', result);
+  
+  return result;
 }
 
 function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
