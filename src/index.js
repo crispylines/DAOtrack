@@ -17,12 +17,37 @@ const SOL_MINT = 'So11111111111111111111111111111111111111112';
 // Wallet Labels and Known Tokens
 import { WALLET_LABELS, KNOWN_TOKENS } from './tokenList.js';
 
+const ALLOWED_ORIGINS = [
+  'https://your-frontend-domain.com',
+  'https://daotrack-worker.qrimeth.workers.dev',
+  // Add other allowed domains here
+];
+
+function corsHeaders(request) {
+  const origin = request.headers.get('Origin');
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
 addEventListener('fetch', (event) => {
     event.respondWith(handleRequest(event.request));
 });
 
 
 async function handleRequest(request) {
+  // Handle CORS preflight requests
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: corsHeaders(request),
+    });
+  }
+
   if (request.method === 'POST') {
     try {
       const transactions = await request.json();
@@ -34,30 +59,89 @@ async function handleRequest(request) {
       for (const transaction of transactions) {
         await processTransaction(transaction);
       }
+      
+      return new Response('Success', { 
+        status: 200,
+        headers: corsHeaders(request)
+      });
     } catch (error) {
       console.error('Error processing request:', error);
-      return new Response('Error processing request', { status: 500 });
+      return new Response('Error processing request', { 
+        status: 500,
+        headers: corsHeaders(request)
+      });
     }
   } else if (request.method === 'GET') {
     const url = new URL(request.url);
     
-    if (url.pathname === '/api/transactions') {
+    if (url.pathname === '/') {
+      const transactions = await TOKEN_BUYS_10.get('recent_transactions');
       const headers = {
-        'Access-Control-Allow-Origin': 'https://your-actual-frontend-domain.com',
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Type': 'text/html',
+        ...corsHeaders(request)
       };
       
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>DAO Tracker</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .transaction { border: 1px solid #ddd; padding: 10px; margin: 10px 0; }
+            </style>
+            <script>
+              // Auto-refresh every 30 seconds
+              setInterval(() => {
+                window.location.reload();
+              }, 30000);
+            </script>
+          </head>
+          <body>
+            <h1>Recent DAO Transactions</h1>
+            <p>Page auto-refreshes every 30 seconds</p>
+            <div id="transactions">
+              ${JSON.parse(transactions || '[]')
+                .map(tx => `
+                  <div class="transaction">
+                    <p><strong>${tx.walletLabel}</strong> ${tx.isBuy ? 'bought' : 'sold'}</p>
+                    <p>${tx.tokenOut.amount} ${tx.tokenOut.symbol} ${tx.isBuy ? 'with' : 'for'} ${tx.tokenIn.amount} ${tx.tokenIn.symbol}</p>
+                    <p>Market Cap: ${tx.marketCap}</p>
+                    <p>Time: ${new Date(tx.timestamp).toLocaleString()}</p>
+                  </div>
+                `).join('')}
+            </div>
+          </body>
+        </html>
+      `;
+      
+      return new Response(html, { headers });
+    }
+    
+    if (url.pathname === '/api/transactions') {
       const transactions = await TOKEN_BUYS_10.get('recent_transactions');
-      return new Response(transactions || '[]', { headers });
+      return new Response(transactions || '[]', { 
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders(request)
+        }
+      });
     }
     
     // Existing webhook setup handling
-    return setupWebhook();
+    if (url.pathname === '/webhook-setup') {
+      const response = await setupWebhook();
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          ...response.headers,
+          ...corsHeaders(request)
+        }
+      });
+    }
   }
 
-  return new Response('OK', { status: 200 });
+  return Response.redirect(new URL('/', request.url), 302);
 }
 
 async function processTransaction(transaction) {
