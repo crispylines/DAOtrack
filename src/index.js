@@ -348,7 +348,7 @@ ${walletLabel} ${isBuy ? 'bought' : 'sold'} ${amountOut} ${tokenOutSymbol} ${out
 
 MC: ${marketCap}
 
-${tokenAddress}
+<code>${tokenAddress}</code>
     `;
 }
 
