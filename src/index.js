@@ -266,19 +266,32 @@ function analyzeNonDaosFunTransaction(tokenTransfers, walletAddress, signature) 
 
 async function getTokenMetadata(mint) {
   try {
-    // Check KNOWN_TOKENS
+    // First check KNOWN_TOKENS
     if (KNOWN_TOKENS[mint]) {
       return KNOWN_TOKENS[mint];
     }
 
-    // If not in KNOWN_TOKENS, default to symbol/name being the mint
+    // If not in KNOWN_TOKENS, try DexScreener
+    const response = await fetch(`${DEX_SCREENER_API}${mint}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.pairs && data.pairs.length > 0) {
+        const tokenInfo = data.pairs[0];
+        return {
+          symbol: tokenInfo.baseToken.symbol,
+          name: tokenInfo.baseToken.name,
+        };
+      }
+    }
+
+    // If DexScreener fails or token not found, default to shortened mint
     return {
-      symbol: mint.substring(0, 8), // Shortened mint as symbol
-      name: mint, // Full mint as name
+      symbol: mint.substring(0, 8),
+      name: mint,
     };
   } catch (error) {
     console.error('Error fetching token metadata:', error);
-    return { symbol: 'Unknown', name: 'Unknown' };
+    return { symbol: mint.substring(0, 8), name: mint };
   }
 }
 

@@ -17,20 +17,16 @@ export const WALLET_LABELS = {
     'A6gM9zTVdN6CLqTdg68HpU9oZ8QmTYvt8onQZxUBHBre': '#girle',
     '7U5A9pEKTeLA8njrAhEeSxJCqjGHMCeMTmHQ3qkDvtPc': '#tribe',
     '4j3ywET5xEDknSSfGXnffkzg2bJnHe51baLZMCLmW3Jg': '#x',
+    'BgwAen9wHPS5S93RngHQy6ZUHYsDQrZUm6BA76kjRyHC': '#x',
 };
   
 export const KNOWN_TOKENS = {
-    So11111111111111111111111111111111111111112: {
-      name: 'SOL',
-      symbol: 'SOL',
-      logoURI: null,
-    },
-    HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC: {
+    'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC': {
       name: 'ai16z',
       symbol: 'ai16z',
       logoURI: null,
     },
-    EqsBaDzag9bB9Tkck8kBXtQj4DdXTSr7S5V3aH3nVfZr: {
+    'EqsBaDzag9bB9Tkck8kBXtQj4DdXTSr7S5V3aH3nVfZr': {
       name: 'Private Asset Wealth Group',
       symbol: 'PAWG',
       logoURI: null,
@@ -45,7 +41,7 @@ export const KNOWN_TOKENS = {
       symbol: 'diddycap',
       logoURI: null,
     },
-    FTikkFDaNqpFPZ3BE32QqNtx2PwAk4y3nfeeYYtyJFWR: {
+    'FTikkFDaNqpFPZ3BE32QqNtx2PwAk4y3nfeeYYtyJFWR': {
       name: 'DAMP Protocol',
       symbol: 'damp',
       logoURI: null,
@@ -55,12 +51,12 @@ export const KNOWN_TOKENS = {
       symbol: 'late',
       logoURI: null,
     },
-    BgBYAPuGkd4Fn58mBPhNnrts6H6K4m2xwWWYVXi2kgsL: {
+    'BgBYAPuGkd4Fn58mBPhNnrts6H6K4m2xwWWYVXi2kgsL': {
       name: 'wAI Combinator',
       symbol: 'wAI',
       logoURI: null,
     },
-    GQQ7zcP3a5dqrMYaD7BPdPd9Ksxcm6BgkcfnBKWsqcWn: {
+    'GQQ7zcP3a5dqrMYaD7BPdPd9Ksxcm6BgkcfnBKWsqcWn': {
       name: 'KOTOPIA',
       symbol: 'KOTO',
       logoURI: null,
@@ -70,22 +66,22 @@ export const KNOWN_TOKENS = {
       symbol: 'inf',
       logoURI: null,
     },
-    EqYnLeJgWUZ7U4C4uF481eAe2PkcyoqxDVFEMYL282Ux: {
+    'EqYnLeJgWUZ7U4C4uF481eAe2PkcyoqxDVFEMYL282Ux': {
       name: 'Monopoly',
       symbol: 'mono',
       logoURI: null,
     },
     '56PCzXa6wN9bbaVJZwRTSSPqynPbcYodQUAm2vBLKjFJ': {
-      name: 'George Fund Capital',
+      name: 'George F Capital',
       symbol: 'GFC',
       logoURI: null,
     },
-    Ca5pGwrrwtUgBMDe4sL3UxgqG9GsUwXCRWm1UsYJKnZk: {
+    'Ca5pGwrrwtUgBMDe4sL3UxgqG9GsUwXCRWm1UsYJKnZk': {
       name: 'Milady',
       symbol: 'milady',
       logoURI: null,
     },
-    CC4aRC4wiw4UfRBmUZZo9jqHiKnUZbL5bWwMHHHqnpFw: {
+    'CC4aRC4wiw4UfRBmUZZo9jqHiKnUZbL5bWwMHHHqnpFw': {
       name: 'Retardio',
       symbol: 'retardio',
       logoURI: null,
@@ -95,12 +91,12 @@ export const KNOWN_TOKENS = {
       symbol: 'paradigm',
       logoURI: null,
     },
-    DmyYENoMKDFtbfUeBcMhAedi1amPSEvJC9Sy8R8VxQ8j: {
+    'DmyYENoMKDFtbfUeBcMhAedi1amPSEvJC9Sy8R8VxQ8j': {
       name: 'girl econo',
       symbol: 'girle',
       logoURI: null,
     },
-    DC6vk2HjYLZmT6XAjNdfbBD2Sd3ikkNkoVLzz4QeA9WC: {
+    'DC6vk2HjYLZmT6XAjNdfbBD2Sd3ikkNkoVLzz4QeA9WC': {
       name: 'tribe',
       symbol: 'tribe',
       logoURI: null,
@@ -110,6 +106,10 @@ export const KNOWN_TOKENS = {
       symbol: 'X',
       logoURI: null,
     },
-    
+    'AqHsVVzWuu7e1de1j7sGJ4MdJ74xUvCeXf19Y4dLiM3S': {
+      name: 'topkek',
+      symbol: 'topkek',
+      logoURI: null,
+    },
     
 };
