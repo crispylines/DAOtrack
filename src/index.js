@@ -4,29 +4,23 @@
 //wrangler tail solana-tracker-worker //for logging
 //git push //npm run deploy
 // Constants
-const TELEGRAM_BOT_TOKEN = BOT_TOKEN; // Your Telegram Bot Token
-const TELEGRAM_CHAT_ID = CHAT_ID; // Your Telegram Chat ID
-const HELIUS_API_KEY = API_KEY; // Your Helius API Key
+const TELEGRAM_BOT_TOKEN = BOT_TOKEN;
+const TELEGRAM_CHAT_ID = CHAT_ID;
+const HELIUS_API_KEY = API_KEY;
 const HELIUS_RPC_URL = `https://rpc.helius.xyz/?api-key=${HELIUS_API_KEY}`;
-
-// Wallet Labels (Simplified and in tokenList.js)
-import { WALLET_LABELS, KNOWN_TOKENS } from './tokenList.js';
-
-// Helius Webhook URL
 const HELIUS_WEBHOOK_URL = `https://api.helius.xyz/v0/webhooks?api-key=${HELIUS_API_KEY}`;
-
-// Program ID for daos.fun
 const DAOS_FUN_PROGRAM_ID = '4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM';
-
-// DEX Screener API for market cap
+const JUPITER_PROGRAM_ID = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';  // Jupiter v6
 const DEX_SCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens/';
-
-// Constants for token metadata
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
+// Wallet Labels and Known Tokens
+import { WALLET_LABELS, KNOWN_TOKENS } from './tokenList.js';
+
 addEventListener('fetch', (event) => {
-  event.respondWith(handleRequest(event.request));
+    event.respondWith(handleRequest(event.request));
 });
+
 
 async function handleRequest(request) {
   if (request.method === 'POST') {
@@ -68,13 +62,10 @@ async function processTransaction(transaction) {
 
     const walletAddress = involvedWallet.account;
 
-    const analysisResult = await analyzeTransaction(
-      transaction,
-      walletAddress,
-    );
+    const analysisResult = await analyzeTransaction(transaction, walletAddress);
     if (!analysisResult) {
-      console.log(`Transaction ${signature} is not a relevant buy/sell.`);
-      return;
+        console.log(`Transaction ${transaction.signature} is not a relevant buy/sell.`);
+        return;
     }
 
     const { isBuy, tokenIn, tokenOut, amountIn, amountOut } = analysisResult;
@@ -108,19 +99,54 @@ async function processTransaction(transaction) {
 }
 
 async function analyzeTransaction(transaction, walletAddress) {
-  const { accountData, instructions, tokenTransfers, signature } = transaction;
+  const { instructions, tokenTransfers, signature } = transaction;
 
-  const isDaosFunInteraction = instructions.some(
-    (ix) => ix.programId === DAOS_FUN_PROGRAM_ID,
+  if (instructions.some(ix => ix.programId === DAOS_FUN_PROGRAM_ID)) {
+      console.log(`Transaction ${signature} is a daos.fun interaction.`);
+      return analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature);
+  } else if (instructions.some(ix => ix.programId === JUPITER_PROGRAM_ID) ) { // Check for Jupiter
+      console.log(`Transaction ${signature} is a Jupiter interaction.`);
+      return analyzeJupiterTransaction(tokenTransfers, walletAddress, signature);
+  } else {
+      console.log(`Transaction ${signature} is NOT a daos.fun or Jupiter interaction.`);
+      return analyzeNonDaosFunTransaction(tokenTransfers, walletAddress, signature)
+  }
+}
+
+function analyzeJupiterTransaction(tokenTransfers, walletAddress, signature) {
+  if (tokenTransfers.length < 2) {
+      console.log(`Jupiter Transaction ${signature} has fewer than 2 token transfers; skipping.`);
+      return null;
+  }
+
+  // Find SOL transfer (Jupiter uses wrapped SOL)
+  const solTransfer = tokenTransfers.find(transfer => transfer.mint === SOL_MINT);
+
+  if (!solTransfer) {
+      console.log(`No SOL transfer found in Jupiter transaction ${signature}.`);
+      return null;
+  }
+
+  const isBuy = solTransfer.fromUserAccount === walletAddress;
+
+  const amountIn = solTransfer.tokenAmount;
+  const tokenIn = solTransfer.mint;
+
+
+
+  const otherTokenTransfer = tokenTransfers.find(
+      (transfer) => KNOWN_TOKENS.hasOwnProperty(transfer.mint) && transfer.mint !== SOL_MINT
   );
 
-  if (isDaosFunInteraction) {
-    console.log(`Transaction ${signature} is a daos.fun interaction.`);
-    return analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature);
-  } else {
-    console.log(`Transaction ${signature} is NOT a daos.fun interaction.`);
-    return analyzeNonDaosFunTransaction(tokenTransfers, walletAddress, signature);
+  if (!otherTokenTransfer) {
+      console.log(`No other known token transfer found in Jupiter transaction ${signature}.`);
+      return null;
   }
+
+  const amountOut = otherTokenTransfer.tokenAmount;
+  const tokenOut = otherTokenTransfer.mint;
+
+  return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
 }
 
 function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
