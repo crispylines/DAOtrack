@@ -325,7 +325,7 @@ function formatMessage({
   marketCap,
   tokenAddress,
 }) {
-  const action = isBuy ? '🟢 BOUGHT' : '🔴 SOLD';
+  const action = isBuy ? '🟢 DAO BOUGHT' : '🔴 DAO SOLD';
   const inName = tokenInName ? `(${tokenInName})` : '';
   const outName = tokenOutName ? `(${tokenOutName})` : '';
 
