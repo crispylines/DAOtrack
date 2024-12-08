@@ -77,27 +77,18 @@ async function processTransaction(transaction) {
       fetchMarketCap(isBuy ? tokenOut : tokenIn),
     ]);
 
-    console.log('Transaction analysis:', {
-      isBuy,
-      tokenIn,
-      tokenOut,
-      tokenAddress: isBuy ? tokenOut : tokenIn
-    });
-
     const message = formatMessage({
-      isBuy,
-      walletLabel: WALLET_LABELS[walletAddress],
-      tokenInSymbol: tokenInMetadata.symbol,
-      tokenOutSymbol: tokenOutMetadata.symbol,
-      amountIn,
-      amountOut,
-      tokenInName: tokenInMetadata.name,
-      tokenOutName: tokenOutMetadata.name,
-      marketCap,
-      tokenAddress: isBuy ? tokenOut : tokenIn,
-    });
-
-    console.log('Formatted message tokenAddress:', isBuy ? tokenOut : tokenIn);
+  isBuy,
+  walletLabel: WALLET_LABELS[walletAddress],
+  tokenInSymbol: tokenInMetadata.symbol,
+  tokenOutSymbol: tokenOutMetadata.symbol,
+  amountIn,
+  amountOut,
+  tokenInName: tokenInMetadata.name,
+  tokenOutName: tokenOutMetadata.name,
+  marketCap,
+  tokenAddress: isBuy ? tokenOut : tokenIn,  // This line is correct, but let's verify tokenIn/tokenOut are set correctly
+});
 
     await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
   } catch (error) {
@@ -128,53 +119,34 @@ function analyzeJupiterTransaction(tokenTransfers, walletAddress, signature) {
       return null;
   }
 
-  // Find the token transfer where the wallet is either sending or receiving
-  const walletTransfers = tokenTransfers.filter(transfer => 
-      transfer.fromUserAccount === walletAddress || 
-      transfer.toUserAccount === walletAddress
-  );
+  // Find SOL transfer (Jupiter uses wrapped SOL)
+  const solTransfer = tokenTransfers.find(transfer => transfer.mint === SOL_MINT);
 
-  console.log('Wallet transfers:', walletTransfers);
-
-  if (walletTransfers.length < 2) {
-      console.log(`No relevant token transfers found for wallet in Jupiter transaction ${signature}`);
+  if (!solTransfer) {
+      console.log(`No SOL transfer found in Jupiter transaction ${signature}.`);
       return null;
   }
 
-  // The transfer where the wallet is the sender is the input token (what's being sold)
-  const tokenInTransfer = walletTransfers.find(transfer => 
-      transfer.fromUserAccount === walletAddress
+  const isBuy = solTransfer.fromUserAccount === walletAddress;
+
+  const amountIn = solTransfer.tokenAmount;
+  const tokenIn = solTransfer.mint;
+
+
+
+  const otherTokenTransfer = tokenTransfers.find(
+      (transfer) => KNOWN_TOKENS.hasOwnProperty(transfer.mint) && transfer.mint !== SOL_MINT
   );
 
-  // The transfer where the wallet is the receiver is the output token (what's being bought)
-  const tokenOutTransfer = walletTransfers.find(transfer => 
-      transfer.toUserAccount === walletAddress
-  );
-
-  console.log('Transfer analysis:', {
-    tokenInTransfer,
-    tokenOutTransfer
-  });
-
-  if (!tokenInTransfer || !tokenOutTransfer) {
-      console.log(`Couldn't identify in/out transfers in Jupiter transaction ${signature}`);
+  if (!otherTokenTransfer) {
+      console.log(`No other known token transfer found in Jupiter transaction ${signature}.`);
       return null;
   }
 
-  const isBuy = tokenOutTransfer.mint !== SOL_MINT; // If receiving non-SOL token, it's a buy
-  
-  const result = {
-      isBuy,
-      tokenIn: tokenInTransfer.mint,
-      tokenOut: tokenOutTransfer.mint,
-      amountIn: tokenInTransfer.tokenAmount,
-      amountOut: tokenOutTransfer.tokenAmount,
-      tokenAddress: isBuy ? tokenOutTransfer.mint : tokenInTransfer.mint
-  };
+  const amountOut = otherTokenTransfer.tokenAmount;
+  const tokenOut = otherTokenTransfer.mint;
 
-  console.log('Jupiter analysis result:', result);
-  
-  return result;
+  return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
 }
 
 function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
