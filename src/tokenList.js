@@ -63,7 +63,7 @@ export const KNOWN_TOKENS = {
     },
     '41efRpYgL94NCMktNH84fkVxwSFkhahJ58X4UfVC292h': {
       name: 'Inferno',
-      symbol: 'inf',
+      symbol: 'infer',
       logoURI: null,
     },
     'EqYnLeJgWUZ7U4C4uF481eAe2PkcyoqxDVFEMYL282Ux': {

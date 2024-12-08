@@ -39,7 +39,21 @@ async function handleRequest(request) {
       return new Response('Error processing request', { status: 500 });
     }
   } else if (request.method === 'GET') {
-    // Handle GET requests (e.g., for webhook setup/verification)
+    const url = new URL(request.url);
+    
+    if (url.pathname === '/api/transactions') {
+      const headers = {
+        'Access-Control-Allow-Origin': 'https://your-actual-frontend-domain.com',
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      };
+      
+      const transactions = await TOKEN_BUYS_10.get('recent_transactions');
+      return new Response(transactions || '[]', { headers });
+    }
+    
+    // Existing webhook setup handling
     return setupWebhook();
   }
 
@@ -90,6 +104,30 @@ async function processTransaction(transaction) {
   tokenAddress: isBuy ? tokenOut : tokenIn,  // This line is correct, but let's verify tokenIn/tokenOut are set correctly
 });
 
+    const transactionData = {
+      timestamp: Date.now(),
+      signature: transaction.signature,
+      isBuy,
+      walletLabel: WALLET_LABELS[walletAddress],
+      tokenIn: {
+        symbol: tokenInMetadata.symbol,
+        name: tokenInMetadata.name,
+        amount: amountIn,
+        address: tokenIn
+      },
+      tokenOut: {
+        symbol: tokenOutMetadata.symbol,
+        name: tokenOutMetadata.name,
+        amount: amountOut,
+        address: tokenOut
+      },
+      marketCap
+    };
+
+    // Store in KV (keep last 100 transactions)
+    await storeTransaction(transactionData);
+
+    // Existing telegram send
     await sendToTelegram(message, isBuy ? tokenOut : tokenIn);
   } catch (error) {
     console.error('Error processing transaction:', error);
@@ -443,4 +481,18 @@ async function setupWebhook() {
     `Webhook created successfully: ${JSON.stringify(newWebhook)}`,
     { status: 200 },
   );
+}
+
+async function storeTransaction(transaction) {
+  // Get current transactions
+  const currentTransactions = JSON.parse(await TOKEN_BUYS_10.get('recent_transactions') || '[]');
+  
+  // Add new transaction at start
+  currentTransactions.unshift(transaction);
+  
+  // Keep only last 100
+  const recentTransactions = currentTransactions.slice(0, 100);
+  
+  // Store back in KV
+  await TOKEN_BUYS_10.put('recent_transactions', JSON.stringify(recentTransactions));
 }
