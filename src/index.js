@@ -168,7 +168,8 @@ function analyzeJupiterTransaction(tokenTransfers, walletAddress, signature) {
       tokenIn: tokenInTransfer.mint,
       tokenOut: tokenOutTransfer.mint,
       amountIn: tokenInTransfer.tokenAmount,
-      amountOut: tokenOutTransfer.tokenAmount
+      amountOut: tokenOutTransfer.tokenAmount,
+      tokenAddress: isBuy ? tokenOutTransfer.mint : tokenInTransfer.mint
   };
 
   console.log('Jupiter analysis result:', result);
