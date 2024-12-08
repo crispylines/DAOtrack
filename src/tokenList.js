@@ -16,6 +16,7 @@ export const WALLET_LABELS = {
     '32hGMSB9KcSU87ww6zGWeWbtnxP8vZYW5bZeykrje9vS': '#paradigm',
     'A6gM9zTVdN6CLqTdg68HpU9oZ8QmTYvt8onQZxUBHBre': '#girle',
     '7U5A9pEKTeLA8njrAhEeSxJCqjGHMCeMTmHQ3qkDvtPc': '#tribe',
+    '4j3ywET5xEDknSSfGXnffkzg2bJnHe51baLZMCLmW3Jg': '#x',
 };
   
 export const KNOWN_TOKENS = {
@@ -104,4 +105,11 @@ export const KNOWN_TOKENS = {
       symbol: 'tribe',
       logoURI: null,
     },
+    '2PHi2f7xPq6bnh2J6xRN2Qc5TJ37epHihvBk49DgpAaU': {
+      name: 'X',
+      symbol: 'X',
+      logoURI: null,
+    },
+    
+    
 };
