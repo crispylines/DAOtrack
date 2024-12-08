@@ -166,32 +166,31 @@ function analyzeDaosFunTransaction(tokenTransfers, walletAddress, signature) {
   }
   const isBuy = solTransfer.fromUserAccount === walletAddress;
 
-  // 2. Find the PAWG transfer (tokenOut)
-  const pawgTransfer = tokenTransfers.find(
-    (t) => KNOWN_TOKENS.hasOwnProperty(t.mint) && t.mint !== SOL_MINT, // Exclude SOL
+  // 2. Find the token transfer (excluding SOL)
+  const tokenTransfer = tokenTransfers.find(
+    (t) => t.mint !== SOL_MINT && 
+    (t.fromUserAccount === walletAddress || t.toUserAccount === walletAddress)
   );
 
-  if (!pawgTransfer) {
-    console.log(`[daos.fun] No PAWG transfer found in ${signature}. Skipping.`);
+  if (!tokenTransfer) {
+    console.log(`[daos.fun] No token transfer found in ${signature}. Skipping.`);
     return null;
   }
 
-  const tokenOut = pawgTransfer.mint;
-  const amountOut = pawgTransfer.tokenAmount;
+  const tokenOut = tokenTransfer.mint;
+  const amountOut = tokenTransfer.tokenAmount;
 
-  // 3. Determine tokenIn (SOL or another token)  and amountIn
+  // 3. Use SOL as tokenIn
   const tokenIn = solTransfer.mint;
   const amountIn = solTransfer.tokenAmount;
 
-  if (isBuy && pawgTransfer.toUserAccount !== walletAddress) {
-    console.warn(`[daos.fun BUY] Unexpected PAWG recipient for ${signature}.`);
-    return null; // Or handle somehow if a buy has PAWG going to a different wallet
-  } else if (!isBuy && pawgTransfer.fromUserAccount !== walletAddress) {
-    console.warn(`[daos.fun SELL] Unexpected PAWG sender for ${signature}.`);
-    return null; // Or handle if a sell has PAWG coming from a different wallet
+  if (isBuy && tokenTransfer.toUserAccount !== walletAddress) {
+    console.warn(`[daos.fun BUY] Unexpected token recipient for ${signature}.`);
+    return null;
+  } else if (!isBuy && tokenTransfer.fromUserAccount !== walletAddress) {
+    console.warn(`[daos.fun SELL] Unexpected token sender for ${signature}.`);
+    return null;
   }
-
-
 
   return { isBuy, tokenIn, tokenOut, amountIn, amountOut };
 }
