@@ -18,6 +18,7 @@ export const WALLET_LABELS = {
     '7U5A9pEKTeLA8njrAhEeSxJCqjGHMCeMTmHQ3qkDvtPc': '#tribe',
     '4j3ywET5xEDknSSfGXnffkzg2bJnHe51baLZMCLmW3Jg': '#x',
     'BgwAen9wHPS5S93RngHQy6ZUHYsDQrZUm6BA76kjRyHC': '#topkek',
+    '8bbEEszGzYtwefJJ5ED3iGUqdHSR3RwQJYAj1JrAmRtv': '#Goldmen Stanley',
 };
   
 export const KNOWN_TOKENS = {
@@ -111,5 +112,9 @@ export const KNOWN_TOKENS = {
       symbol: 'topkek',
       logoURI: null,
     },
-    
+    'GeV6SB57kLbBpBksGBDcwpnm8cjuoGdUDHyFtcj6pTad': {
+      name: 'Goldmen Stanley',
+      symbol: 'Goldmen Stanley',
+      logoURI: null,
+    },
 };
